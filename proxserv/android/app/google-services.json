@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "610968381992",
+    "project_id": "proxserv-hackathon",
+    "storage_bucket": "proxserv-hackathon.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:610968381992:android:06ba34cb7367607274631d",
+        "android_client_info": {
+          "package_name": "com.proxserv.proxserv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAttuNofibLHltI8s3R3GBWYsiU4ChfYDY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
