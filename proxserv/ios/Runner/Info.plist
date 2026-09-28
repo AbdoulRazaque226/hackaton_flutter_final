@@ -28,6 +28,7 @@
 	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
+		
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 		<key>UISceneConfigurations</key>
@@ -66,5 +67,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ProxServ utilise votre position pour trouver les professionnels proches de vous.</string>
 </dict>
 </plist>
