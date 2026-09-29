@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -89,15 +90,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
           MaterialPageRoute<void>(builder: (_) => const ClientHomeScreen()),
         );
       }
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException catch (e, st) {
+      // Le code exact apparaît dans la console : c'est lui qui explique le 400.
+      debugPrint('signUp FirebaseAuthException: ${e.code} | ${e.message}');
+      debugPrintStack(stackTrace: st, maxFrames: 5);
       if (!mounted) return;
-      setState(() => _error = authErrorMessage(e));
-    } catch (_) {
+      setState(() => _error = _signUpErrorMessage(e));
+    } catch (e, st) {
+      // Erreur non-Auth (ex. échec d'écriture du profil dans Firestore).
+      debugPrint('signUp erreur inattendue: $e');
+      debugPrintStack(stackTrace: st, maxFrames: 5);
       if (!mounted) return;
-      setState(() => _error = 'Inscription impossible. Réessayez.');
+      setState(() {
+        _error = kDebugMode
+            ? 'Inscription impossible : $e'
+            : 'Inscription impossible. Réessayez.';
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  // Messages précis pour les erreurs d'inscription ; sinon on retombe sur
+  // le message générique partagé (authErrorMessage).
+  String _signUpErrorMessage(FirebaseAuthException e) {
+    final raw = '${e.code} ${e.message ?? ''}'.toUpperCase();
+    // En développement, on ajoute le code brut pour diagnostiquer vite.
+    final suffix = kDebugMode ? ' [${e.code}]' : '';
+
+    if (raw.contains('RECAPTCHA')) {
+      return 'Vérification de sécurité échouée (reCAPTCHA). '
+          'Réessayez ou contactez le support.$suffix';
+    }
+    if (raw.contains('OPERATION_NOT_ALLOWED') ||
+        raw.contains('OPERATION-NOT-ALLOWED')) {
+      return 'L\'inscription par e-mail n\'est pas activée sur le serveur.'
+          '$suffix';
+    }
+    if (raw.contains('CONFIGURATION_NOT_FOUND') ||
+        raw.contains('API_KEY') ||
+        raw.contains('API KEY')) {
+      return 'Configuration Firebase invalide. Contactez le support.$suffix';
+    }
+    if (raw.contains('NETWORK')) {
+      return 'Problème de connexion. Vérifiez votre réseau.$suffix';
+    }
+    return '${authErrorMessage(e)}$suffix';
   }
 
   void _selectRole(UserRole role) {
@@ -229,8 +267,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: _confirmController,
                       obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _loading ? null : _submit(),
+                      // Pour un professionnel, d'autres champs suivent.
+                      textInputAction:
+                          _isPro ? TextInputAction.next : TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!_isPro && !_loading) _submit();
+                      },
                       decoration: const InputDecoration(
                         labelText: 'Confirmer le mot de passe',
                         prefixIcon: Icon(Icons.lock_reset_outlined),
@@ -248,7 +290,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (_isPro) ...[
                       const SizedBox(height: 24),
                       DropdownButtonFormField<Metier>(
-                        initialValue: _metier,
+                        // `value` fonctionne sur toutes les versions de Flutter
+                        // (initialValue n'existe que sur les plus récentes).
+                        value: _metier,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Métier',
@@ -280,6 +324,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _zoneController,
                         textCapitalization: TextCapitalization.words,
                         textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) {
+                          if (!_loading) _submit();
+                        },
                         decoration: const InputDecoration(
                           labelText: 'Zone d\'intervention',
                           hintText: 'Ex. Cocody, Abidjan',

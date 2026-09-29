@@ -2,9 +2,9 @@
 // Lancer avec : flutter run -t lib/main_map_test.dart
 import 'package:flutter/material.dart';
 
-import 'data/models/enums.dart';
-import 'data/models/professional_profile.dart';
-import 'presentation/screens/map_screen.dart';
+import 'package:proxserv/data/models/enums.dart';
+import 'package:proxserv/data/models/professional_profile.dart';
+import 'package:proxserv/presentation/screens/map_screen.dart';
 
 void main() => runApp(const MaterialApp(home: _Demo()));
 

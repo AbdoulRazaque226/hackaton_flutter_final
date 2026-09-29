@@ -157,22 +157,17 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'De quel service avez-vous besoin ?',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _MetierSelector(
-                    selected: _metier,
-                    onChanged: (metier) => setState(() => _metier = metier),
-                  ),
-                ],
+              child: Text(
+                'De quel service avez-vous besoin ?',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+            ),
+            const SizedBox(height: 12),
+            _MetierSelector(
+              selected: _metier,
+              onChanged: (metier) => setState(() => _metier = metier),
             ),
             if (_locationMessage != null)
               _LocationNotice(
@@ -241,7 +236,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 }
 
-// Sélecteur du métier recherché.
+// Sélecteur du métier recherché : une seule ligne, défilable horizontalement
+// (de droite à gauche et inversement).
 class _MetierSelector extends StatelessWidget {
   final Metier selected;
   final ValueChanged<Metier> onChanged;
@@ -250,18 +246,22 @@ class _MetierSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final metier in Metier.values)
-          ChoiceChip(
-            label: Text(metier.label),
-            avatar: Icon(metierIcon(metier), size: 18),
-            selected: metier == selected,
-            onSelected: (_) => onChanged(metier),
-          ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          for (final metier in Metier.values) ...[
+            ChoiceChip(
+              label: Text(metier.label),
+              avatar: Icon(metierIcon(metier), size: 18),
+              selected: metier == selected,
+              onSelected: (_) => onChanged(metier),
+            ),
+            if (metier != Metier.values.last) const SizedBox(width: 8),
+          ],
+        ],
+      ),
     );
   }
 }

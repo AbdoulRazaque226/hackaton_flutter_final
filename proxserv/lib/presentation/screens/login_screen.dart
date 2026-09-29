@@ -110,7 +110,10 @@ class _LoginScreenState extends State<LoginScreen> {
   void _goToRegister() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => RegisterScreen(firebaseService: _service),
+        builder: (_) => RegisterScreen(
+          firebaseService: _service,
+          onRegistered: widget.onSignedIn,
+        ),
       ),
     );
   }
