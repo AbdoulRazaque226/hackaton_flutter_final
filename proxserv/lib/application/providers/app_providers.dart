@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../../data/models/app_user.dart';
 import '../../data/models/professional_profile.dart';
 import '../../data/models/service_request.dart';
-import '../../data/models/enums.dart'; // Contient RequestStatus
+import '../../data/models/enums.dart';
+import '../../data/services/location_service.dart'; // Contient RequestStatus
 
 // Instance Firebase de base (injectée pour faciliter d'éventuels tests)
 final firebaseAuthProvider = Provider<FirebaseAuth>(
@@ -46,6 +47,8 @@ final professionalProfileProvider =
     >((ref) {
       return ProfessionalNotifier(ref);
     });
+
+final locationServiceProvider = Provider((ref) => LocationService());
 
 class ProfessionalNotifier
     extends StateNotifier<AsyncValue<ProfessionalProfile?>> {
@@ -90,13 +93,35 @@ class ProfessionalNotifier
     state = AsyncData(currentProfile.copyWith(disponible: newStatus));
 
     try {
+      Map<String, dynamic> updates = {'disponible': newStatus};
+
+      // SI L'ARTISAN PASSE EN LIGNE : On récupère sa vraie position
+      if (newStatus) {
+        // Demande de permission et récupération des coordonnées
+        final position = await _ref
+            .read(locationServiceProvider)
+            .getCurrentPosition();
+
+        updates['latitude'] = position.latitude;
+        updates['longitude'] = position.longitude;
+
+        // Mise à jour locale 
+        state = AsyncData(
+          currentProfile.copyWith(
+            disponible: newStatus,
+            latitude: position.latitude,
+            longitude: position.longitude,
+          ),
+        );
+      }
+
       await _ref
           .read(firestoreProvider)
           .collection('professionals')
           .doc(currentProfile.uid)
           .update({'disponible': newStatus});
     } catch (e, stack) {
-      // En cas d'erreur réseau (fréquent en contexte africain), on remet l'ancienne valeur
+      // En cas d'erreur réseau
       state = AsyncData(currentProfile);
       state = AsyncError(e, stack);
     }
