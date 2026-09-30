@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:proxserv/data/services/firebase_service.dart';
 import '../../application/providers/app_providers.dart';
 import '../../data/models/service_request.dart';
 import '../../data/models/enums.dart';
 
 class ProfessionalDashboardScreen extends ConsumerWidget {
-  const ProfessionalDashboardScreen({super.key, required String professionalId, required FirebaseService firebaseService, required void Function() onLogout});
+  const ProfessionalDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -198,9 +197,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
         statusColor = Colors.green;
         statusText = 'Terminée';
         break;
-      default:
-        statusColor = Colors.black;
-        statusText = 'Inconnu';
     }
 
     return Card(
@@ -227,7 +223,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: statusColor,

@@ -292,7 +292,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       DropdownButtonFormField<Metier>(
                         // `value` fonctionne sur toutes les versions de Flutter
                         // (initialValue n'existe que sur les plus récentes).
-                        value: _metier,
+                        initialValue: _metier,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Métier',

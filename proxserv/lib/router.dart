@@ -1,151 +1,96 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import '../../data/models/app_user.dart';
-import '../../data/models/professional_profile.dart';
-import '../../data/models/service_request.dart';
-import '../../data/models/enums.dart'; // Contient RequestStatus
+import 'package:proxserv/data/models/app_user.dart';
 
-// Instance Firebase de base (injectée pour faciliter d'éventuels tests)
-final firebaseAuthProvider = Provider<FirebaseAuth>(
-  (ref) => FirebaseAuth.instance,
-);
-final firestoreProvider = Provider<FirebaseFirestore>(
-  (ref) => FirebaseFirestore.instance,
-);
+import 'application/providers/app_providers.dart';
+import 'data/models/professional_profile.dart';
+import 'presentation/screens/login_screen.dart';
+import 'presentation/screens/register_screen.dart';
+import 'presentation/screens/client_home_screen.dart';
+import 'presentation/screens/professional_dashboard_screen.dart';
+import 'presentation/screens/professional_detail_screen.dart';
 
-// Stream du statut d'authentification (écoute si un utilisateur est connecté ou non)
-final authStateProvider = StreamProvider<User?>((ref) {
-  return ref.watch(firebaseAuthProvider).authStateChanges();
-});
+final routerProvider = Provider<GoRouter>((ref) {
+  // On écoute le statut de l'utilisateur pour forcer une réévaluation des routes s'il change
+  final authStateAsync = ref.watch(currentUserProvider);
 
-// Provider de l'utilisateur connecté (récupère le profil AppUser depuis Firestore)
-final currentUserProvider = StreamProvider<AppUser?>((ref) {
-  final authState = ref.watch(authStateProvider).value;
-  if (authState == null) return Stream.value(null);
+  return GoRouter(
+    initialLocation: '/',
+    // Redirection automatique selon l'état d'authentification et le rôle
+    redirect: (context, state) {
+      // Si les données utilisateur sont encore en cours de chargement, on ne redirige pas encore
+      if (authStateAsync.isLoading) return null;
 
-  return ref
-      .watch(firestoreProvider)
-      .collection('users')
-      .doc(authState.uid)
-      .snapshots()
-      .map(
-        (snapshot) => snapshot.exists
-            ? AppUser.fromMap(snapshot.id, snapshot.data()!)
-            : null,
-      );
-});
+      final user = authStateAsync.value;
+      final isLoggingIn =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register';
 
-// StateNotifier pour gérer le profil professionnel et sa disponibilité
-// CORRECTION TECHNIQUE : Le deuxième type générique DOIT correspondre EXACTEMENT à ce qui est dans le super() du Notifier.
-final professionalProfileProvider =
-    StateNotifierProvider<
-      ProfessionalNotifier,
-      AsyncValue<ProfessionalProfile?>
-    >((ref) {
-      return ProfessionalNotifier(ref);
-    });
-
-class ProfessionalNotifier
-    extends StateNotifier<AsyncValue<ProfessionalProfile?>> {
-  final Ref _ref;
-
-  ProfessionalNotifier(this._ref) : super(const AsyncLoading()) {
-    _init();
-  }
-
-  // Initialise l'écoute en temps réel du profil de l'artisan connecté
-  void _init() {
-    _ref.listen<AsyncValue<AppUser?>>(currentUserProvider, (previous, next) {
-      final user = next.value;
-      if (user != null && user.role == 'professionnel') {
-        _ref
-            .read(firestoreProvider)
-            .collection('professionals')
-            .doc(user.uid)
-            .snapshots()
-            .listen((snapshot) {
-              if (snapshot.exists) {
-                state = AsyncData(
-                  ProfessionalProfile.fromMap(snapshot.id, snapshot.data()!),
-                );
-              } else {
-                state = const AsyncData(null);
-              }
-            }, onError: (err, stack) => state = AsyncError(err, stack));
-      } else {
-        state = const AsyncData(null);
+      // Cas 1 : l'utilisateur n'est PAS connecté
+      if (user == null) {
+        // S'il n'est pas sur une page d'authentification, on le renvoie vers le Login
+        return isLoggingIn ? null : '/login';
       }
-    }, fireImmediately: true);
-  }
 
-  // FONCTIONNALITÉ : Basculer la disponibilité (En ligne / Hors ligne)
-  Future<void> toggleAvailability() async {
-    final currentProfile = state.value;
-    if (currentProfile == null) return;
+      // Cas 2 : l'utilisateur est connecté et tente d'aller sur Login/Register,
+      // ou vient d'ouvrir l'application à la racine '/'
+      if (isLoggingIn || state.matchedLocation == '/') {
+        // Routage selon le rôle enregistré dans le document Firestore
+        return user.role == UserRole.professionnel
+            ? '/professional/dashboard'
+            : '/client/home';
+      }
 
-    final newStatus = !currentProfile.disponible;
+      // Pas de redirection nécessaire pour les autres routes
+      return null;
+    },
 
-    state = AsyncData(currentProfile.copyWith(disponible: newStatus));
-
-    try {
-      await _ref
-          .read(firestoreProvider)
-          .collection('professionals')
-          .doc(currentProfile.uid)
-          .update({'disponible': newStatus});
-    } catch (e, stack) {
-      // En cas d'erreur réseau (fréquent en contexte africain), on remet l'ancienne valeur
-      state = AsyncData(currentProfile);
-      state = AsyncError(e, stack);
-    }
-  }
-}
-
-// StreamProvider de la liste des demandes reçues par cet artisan
-final professionalRequestsProvider = StreamProvider<List<ServiceRequest>>((
-  ref,
-) {
-  final user = ref.watch(currentUserProvider).value;
-  if (user == null || user.role != 'professionnel') return Stream.value([]);
-
-  return ref
-      .watch(firestoreProvider)
-      .collection('requests')
-      .where('professionalId', isEqualTo: user.uid)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map(
-        (snapshot) => snapshot.docs
-            .map(
-              (doc) =>
-                  ServiceRequest.fromMap(doc.id, doc.data()..['id'] = doc.id),
-            )
-            .toList(),
-      );
+    // Déclaration de toutes les routes de l'application
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+      ),
+      GoRoute(
+        path: '/login',
+        // onSignedIn/onRegistered ne naviguent pas eux-mêmes : c'est le
+        // redirect ci-dessus (déclenché par currentUserProvider) qui
+        // s'en charge dès que le rôle est connu — évite une double
+        // navigation entre le Navigator interne et GoRouter.
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      // --- ESPACE CLIENT ---
+      GoRoute(
+        path: '/client/home',
+        builder: (context, state) => ClientHomeScreen(
+          // Ici on branche vraiment la fiche professionnel : au clic sur
+          // un professionnel, on pousse la route dédiée en lui passant le
+          // profil sélectionné.
+          onSelect: (pro) =>
+              context.push('/client/professional', extra: pro),
+        ),
+      ),
+      GoRoute(
+        path: '/client/professional',
+        builder: (context, state) => ProfessionalDetailScreen(
+          profile: state.extra as ProfessionalProfile,
+        ),
+      ),
+      // --- ESPACE PROFESSIONNEL ---
+      GoRoute(
+        path: '/professional/dashboard',
+        builder: (context, state) => const ProfessionalDashboardScreen(),
+      ),
+    ],
+    // Gestion globale d'une page d'erreur 404
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(child: Text('Page introuvable : ${state.error}')),
+    ),
+  );
 });
-
-// Provider d'actions sur les requêtes (Accepter, Refuser, Terminer)
-final requestActionsProvider = Provider((ref) {
-  final firestore = ref.read(firestoreProvider);
-  return RequestActions(firestore);
-});
-
-class RequestActions {
-  final FirebaseFirestore _firestore;
-  RequestActions(this._firestore);
-
-  // Mettre à jour le statut d'une demande d'intervention
-  Future<void> updateRequestStatus(
-    String requestId,
-    RequestStatus status,
-  ) async {
-    final statusString = status.name;
-
-    await _firestore.collection('requests').doc(requestId).update({
-      'status': statusString,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
-}
