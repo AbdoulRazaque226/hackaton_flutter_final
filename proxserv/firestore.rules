@@ -6,10 +6,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId;
+      // Un utilisateur modifie son propre compte ; un admin peut modifier
+      // n'importe quel compte (ex : bloquer/débloquer).
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow delete: if false;
     }
 
@@ -23,9 +30,12 @@ service cloud.firestore {
     }
 
     match /requests/{requestId} {
+      // Le client et le professionnel concernés voient leur demande ;
+      // l'admin voit tout, pour les statistiques globales.
       allow read: if isSignedIn() && (
         request.auth.uid == resource.data.clientId ||
-        request.auth.uid == resource.data.professionalId
+        request.auth.uid == resource.data.professionalId ||
+        isAdmin()
       );
       allow create: if isSignedIn() && request.resource.data.clientId == request.auth.uid;
       // Le client peut noter/commenter ; le professionnel peut changer le statut.

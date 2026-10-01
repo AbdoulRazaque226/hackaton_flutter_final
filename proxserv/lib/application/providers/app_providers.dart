@@ -62,7 +62,7 @@ class ProfessionalNotifier
   void _init() {
     _ref.listen<AsyncValue<AppUser?>>(currentUserProvider, (previous, next) {
       final user = next.value;
-      if (user != null && user.role == 'professionnel') {
+      if (user != null && user.role == UserRole.professionnel) {
         _ref
             .read(firestoreProvider)
             .collection('professionals')
@@ -133,7 +133,7 @@ final professionalRequestsProvider = StreamProvider<List<ServiceRequest>>((
   ref,
 ) {
   final user = ref.watch(currentUserProvider).value;
-  if (user == null || user.role != 'professionnel') return Stream.value([]);
+  if (user == null || user.role != UserRole.professionnel) return Stream.value([]);
 
   return ref
       .watch(firestoreProvider)

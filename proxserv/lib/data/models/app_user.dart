@@ -1,4 +1,4 @@
-enum UserRole { client, professionnel }
+enum UserRole { client, professionnel, admin }
 
 class AppUser {
   final String uid;
@@ -6,6 +6,7 @@ class AppUser {
   final String displayName;
   final String phone;
   final UserRole role;
+  final bool bloque;
 
   const AppUser({
     required this.uid,
@@ -13,6 +14,7 @@ class AppUser {
     required this.displayName,
     required this.phone,
     required this.role,
+    this.bloque = false,
   });
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
@@ -25,6 +27,7 @@ class AppUser {
         (r) => r.name == map['role'],
         orElse: () => UserRole.client,
       ),
+      bloque: map['bloque'] as bool? ?? false,
     );
   }
 
@@ -34,6 +37,7 @@ class AppUser {
       'displayName': displayName,
       'phone': phone,
       'role': role.name,
+      'bloque': bloque,
     };
   }
 }

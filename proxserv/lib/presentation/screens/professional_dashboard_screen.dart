@@ -197,9 +197,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
         statusColor = Colors.green;
         statusText = 'Terminée';
         break;
-      default:
-        statusColor = Colors.black;
-        statusText = 'Inconnu';
     }
 
     return Card(
@@ -226,7 +223,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: statusColor,
