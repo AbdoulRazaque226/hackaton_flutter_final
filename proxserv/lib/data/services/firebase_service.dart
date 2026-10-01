@@ -163,4 +163,42 @@ class FirebaseService {
       'commentaire': commentaire,
     });
   }
+
+  // ---------- ADMIN ----------
+
+  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
+
+  /// Tous les comptes (clients et professionnels confondus), pour
+  /// l'écran d'administration.
+  Stream<List<AppUser>> watchAllUsers() {
+    return _users.snapshots().map(
+          (snap) => snap.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList(),
+        );
+  }
+
+  /// Bloque ou débloque un compte. Un compte bloqué est redirigé vers un
+  /// écran dédié au prochain démarrage de l'app (voir router.dart), il ne
+  /// peut plus utiliser l'application tant qu'il n'est pas débloqué.
+  Future<void> setUserBlocked(String uid, bool bloque) {
+    return _users.doc(uid).update({'bloque': bloque});
+  }
+
+  /// Tous les professionnels, sans filtre de métier — utilisé pour les
+  /// statistiques globales de l'écran d'administration.
+  Stream<List<ProfessionalProfile>> watchAllProfessionals() {
+    return _professionals.snapshots().map(
+          (snap) => snap.docs
+              .map((d) => ProfessionalProfile.fromMap(d.id, d.data()))
+              .toList(),
+        );
+  }
+
+  /// Toutes les demandes, tous clients/professionnels confondus — utilisé
+  /// pour les statistiques globales de l'écran d'administration.
+  Stream<List<ServiceRequest>> watchAllRequests() {
+    return _requests.snapshots().map(
+          (snap) =>
+              snap.docs.map((d) => ServiceRequest.fromMap(d.id, d.data())).toList(),
+        );
+  }
 }
