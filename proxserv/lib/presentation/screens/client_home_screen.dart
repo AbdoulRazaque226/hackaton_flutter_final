@@ -7,6 +7,7 @@ import '../../data/models/professional_profile.dart';
 import '../../data/services/firebase_service.dart';
 import '../../data/services/location_service.dart';
 import 'login_screen.dart';
+import 'map_screen.dart';
 import 'register_screen.dart';
 
 // Accueil client : choix du métier recherché, puis liste des professionnels
@@ -45,6 +46,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   Position? _position;
   String? _locationMessage;
   bool _locating = true;
+
+  // Dernière liste reçue de Firestore pour le métier affiché, gardée pour
+  // pouvoir ouvrir la carte sans relancer un stream dédié.
+  List<ProfessionalProfile> _lastPros = const [];
 
   // Incrémenté par le bouton « Réessayer » : il change la clé du
   // StreamBuilder, ce qui l'oblige à se réabonner à un nouveau flux Firestore
@@ -104,6 +109,21 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
   }
 
+  void _openMap() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MapScreen(
+          professionals: _lastPros,
+          locationService: _location,
+          onSelect: (pro) {
+            Navigator.of(context).pop();
+            _openProfile(pro);
+          },
+        ),
+      ),
+    );
+  }
+
   void _openProfile(ProfessionalProfile pro) {
     final onSelect = widget.onSelect;
     if (onSelect != null) {
@@ -144,6 +164,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         title: const Text('ProxServ'),
         centerTitle: false,
         actions: [
+          IconButton(
+            // TEST : bouton temporaire pour accéder à la carte pendant le
+            // développement, en attendant qu'elle soit intégrée au router
+            // par l'équipe.
+            icon: const Icon(Icons.map_outlined),
+            tooltip: 'Voir la carte (test)',
+            onPressed: _lastPros.isEmpty ? null : _openMap,
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Se déconnecter',
@@ -194,6 +222,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
                   final pros = snapshot.data!;
                   final available = _prepare(pros);
+
+                  // Garde la liste à jour pour le bouton carte, sans
+                  // déclencher un nouveau build (setState interdit pendant
+                  // le build d'un autre widget).
+                  if (!identical(_lastPros, pros)) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) setState(() => _lastPros = pros);
+                    });
+                  }
 
                   if (available.isEmpty) {
                     return _Message(
