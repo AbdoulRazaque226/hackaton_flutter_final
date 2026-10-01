@@ -23,7 +23,7 @@ class MyApp extends ConsumerWidget {
       title: 'ProxServ',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.green, useMaterial3: true),
-
+ 
       routerConfig: router,
     );
   }
