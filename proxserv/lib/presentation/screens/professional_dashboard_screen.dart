@@ -2,17 +2,81 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/providers/app_providers.dart';
 import '../../data/models/service_request.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../data/models/enums.dart';
 
 class ProfessionalDashboardScreen extends ConsumerWidget {
   const ProfessionalDashboardScreen({super.key});
+
+  void _triggerIncomingRequestAlert(
+    BuildContext context,
+    WidgetRef ref,
+    ServiceRequest request,
+  ) {
+    // Lecture du son de notification
+    final player = AudioPlayer();
+    player.play(AssetSource('sounds/notification.mp3'));
+
+    // Affichage d'une SnackBar pour notifier l'artisan
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Nouvelle demande d\'intervention de ${request.clientName} !',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.green.shade700,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Voir',
+          textColor: Colors.white,
+          onPressed: () {
+            // Ouvre le détail de la demande dans un BottomSheet
+            _showRequestDetailsBottomSheet(
+              context,
+              ref,
+              request,
+              Colors.orange, // Couleur pour "En attente"
+              'En attente',
+            );
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(professionalProfileProvider);
     final requestsAsync = ref.watch(professionalRequestsProvider);
 
-    // Utilisation de SafeArea pour éviter les encoches (notches) et barres système
+    // Système d'écoute de la notification push pour les demandes d'intervention
+    ref.listen<AsyncValue<List<ServiceRequest>>>(
+      professionalRequestsProvider,
+      (previous, next) {
+        // On s'assure que les données sont correctement chargées
+        if (next is AsyncData<List<ServiceRequest>>) {
+          final nextRequests = next.value;
+          final previousRequests = previous?.value ?? [];
+
+          //Filtrer les demandes actuellement "En attente"
+          final newPendingRequests = nextRequests.where(
+            (req) => req.status == RequestStatus.enAttente
+          ).toList();
+
+          //Détecter s'il y a une NOUVELLE demande par rapport à la liste précédente
+          if (newPendingRequests.length > previousRequests.where((req) => req.status == RequestStatus.enAttente).length) {
+            // Récupérer la demande la plus récente
+            final newestRequest = newPendingRequests.last;
+
+            //Déclencher l'alerte sonore et visuelle
+            _triggerIncomingRequestAlert(context, ref, newestRequest);
+          }
+        }
+      },
+    );
+
+    
+
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
@@ -258,101 +322,317 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    request.clientName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withAlpha(30),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              request.description,
-              style: const TextStyle(color: Colors.black87),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-
-            // --- ACTIONS (Accepter / Refuser / Terminer) ---
-            if (request.status == RequestStatus.enAttente)
+      clipBehavior: Clip
+          .antiAlias, // Assure que l'effet visuel du clic ne dépasse pas des bords de la carte
+      child: InkWell(
+        onTap: () => _showRequestDetailsBottomSheet(
+          context,
+          ref,
+          request,
+          statusColor,
+          statusText,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- EN-TÊTE : NOM ET STATUT ---
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton(
-                    onPressed: () => ref
-                        .read(requestActionsProvider)
-                        .updateRequestStatus(request.id, RequestStatus.refusee),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('Refuser'),
+                  Expanded(
+                    child: Text(
+                      request.clientName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => ref
-                        .read(requestActionsProvider)
-                        .updateRequestStatus(
-                          request.id,
-                          RequestStatus.acceptee,
-                        ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F5234),
-                      foregroundColor: Colors.white,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    child: const Text('Accepter'),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ],
-              )
-            else if (request.status == RequestStatus.acceptee)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => ref
-                      .read(requestActionsProvider)
-                      .updateRequestStatus(request.id, RequestStatus.terminee),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
+              ),
+              const SizedBox(height: 10),
+
+              // --- DESCRIPTION COMPACTE ---
+              Text(
+                request.description ?? 'Aucune description fournie',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+
+              // --- ADRESSE COMPACTE ---
+              // Row(
+              //   children: [
+              //     Icon(
+              //       Icons.location_on,
+              //       size: 14,
+              //       color: Colors.grey.shade600,
+              //     ),
+              //     const SizedBox(width: 4),
+              //     Expanded(
+              //       child: Text(
+              //         request.adresse ?? 'Adresse non spécifiée',
+              //         style: TextStyle(
+              //           fontSize: 12,
+              //           color: Colors.grey.shade600,
+              //           fontStyle: FontStyle.italic,
+              //         ),
+              //         maxLines: 1,
+              //         overflow: TextOverflow.ellipsis,
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              const SizedBox(height: 4),
+              // Petit indicateur discret invitant à cliquer
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Text(
+                  'Voir détails...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: const Color(0xFF0F5234),
+                    fontWeight: FontWeight.bold,
                   ),
-                  icon: const Icon(Icons.check),
-                  label: const Text('Marquer comme Terminée'),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
+  void _showRequestDetailsBottomSheet(
+    BuildContext context,
+    WidgetRef ref,
+    ServiceRequest request,
+    Color statusColor,
+    String statusText,
+  ) {
+    final isEnAttente = request.status == RequestStatus.enAttente;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled:
+          true, // Permet à la modale de s'adapter si le contenu est long
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            top: 20,
+            left: 20,
+            right: 20,
+            // S'adapte au clavier virtuel ou aux barres de navigation du téléphone
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize
+                .min, // La modale prend uniquement la hauteur nécessaire
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Petite barre supérieure de décoration pour la modale
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- TITRE ET STATUT ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Détails de l\'intervention',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF0F5234),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 30),
+
+              // --- NOM DU CLIENT ---
+              const Text(
+                'Client',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                request.clientName,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // --- ADRESSE D'INTERVENTION ---
+              const Text(
+                'Adresse d\'intervention',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // --- DESCRIPTION COMPLÈTE ---
+              const Text(
+                'Description de la panne / demande',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                request.description ?? 'Aucune description fournie',
+                style: const TextStyle(fontSize: 15, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+
+              // --- BOUTONS D'ACTION ---
+              if (isEnAttente)
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade50,
+                          foregroundColor: Colors.red,
+                          elevation: 0,
+                          side: BorderSide(color: Colors.red.shade200),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => ref
+                            .read(requestActionsProvider)
+                            .updateRequestStatus(
+                              request.id,
+                              RequestStatus.refusee,
+                            ),
+
+                        child: const Text(
+                          'Refuser la demande',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F5234),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => ref
+                            .read(requestActionsProvider)
+                            .updateRequestStatus(
+                              request.id,
+                              RequestStatus.acceptee,
+                            ),
+                        child: const Text(
+                          'Accepter',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                //bouton de fermeture si l'intervention est déjà traitée
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Fermer',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  
 }
