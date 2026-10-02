@@ -11,6 +11,16 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // L'utilisateur courant est l'un des deux acteurs de la demande.
+    // Utilisé par les règles du fil de discussion.
+    function isParticipant(requestId) {
+      let req = get(/databases/$(database)/documents/requests/$(requestId));
+      return isSignedIn() && req.exists && (
+        req.data.clientId == request.auth.uid ||
+        req.data.professionalId == request.auth.uid
+      );
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -42,8 +52,29 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.clientId ||
         request.auth.uid == resource.data.professionalId
-      );
+      )
+      // Les deux acteurs d'une demande ne changent jamais : sans cette garde,
+      // un intervenant pourrait se substituer à l'autre en réécrivant le champ
+      // correspondant, et gagner l'accès au fil de discussion.
+      && request.resource.data.clientId == resource.data.clientId
+      && request.resource.data.professionalId == resource.data.professionalId;
       allow delete: if false;
+
+      // Fil de discussion rattaché à la demande : messages immuables,
+      // lisibles et écritibles uniquement par ses deux acteurs.
+      match /messages/{messageId} {
+        allow read: if isParticipant(requestId);
+
+        allow create: if isParticipant(requestId)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000;
+
+        // Un message envoyé ne se modifie ni ne se supprime : la lecture est
+        // portée par les curseurs de lecture posés sur la demande.
+        allow update, delete: if false;
+      }
     }
   }
 }
