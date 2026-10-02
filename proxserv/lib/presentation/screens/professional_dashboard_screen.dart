@@ -9,39 +9,124 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
   const ProfessionalDashboardScreen({super.key});
 
   //Fonction pour déclencher l'alerte sonore et visuelle lorsqu'une nouvelle demande est reçue
+  //Fonction pour déclencher l'alerte sonore et visuelle lorsqu'une nouvelle demande est reçue
   void _triggerIncomingRequestAlert(
     BuildContext context,
     WidgetRef ref,
     ServiceRequest request,
-  ) {
-    // Lecture du son de notification
-    final player = AudioPlayer();
-    player.play(AssetSource('sounds/notification.mp3'));
+  ) async {
+    // --- LECTURE DU SON SÉCURISÉE CONTRE LES ERREURS CHROME WEB ---
+    try {
+      final player = AudioPlayer();
+      // On force la source et la lecture dans un bloc sécurisé
+      await player.play(AssetSource('sounds/notification.mp3'));
+    } catch (e) {
+      debugPrint(
+        "Note Hackathon - Alerte sonore ignorée sur Chrome (S'exécutera sur mobile) : $e",
+      );
+    }
 
-    // Affichage d'une SnackBar pour notifier l'artisan
+    // --- AFFICHAGE DE LA NOTIFICATION VISUELLE FLASH (SNACKBAR) ---
+    // On nettoie d'abord les anciennes SnackBar pour éviter les files d'attente
+    ScaffoldMessenger.of(context).clearSnackBars();
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Nouvelle demande d\'intervention de ${request.clientName} !',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        content: Row(
+          children: [
+            // Petit indicateur clignotant pour attirer l'œil en l'absence de son sur le Web
+            const Icon(
+              Icons.notification_important,
+              color: Colors.amber,
+              size: 28,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                ' NOUVELLE DEMANDE : Intervention requise de ${request.clientName} !',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: Colors.green.shade700,
-        duration: const Duration(seconds: 5),
+        backgroundColor: const Color(0xFF0F5234), // Vert ProxServ
+        duration: const Duration(
+          seconds: 8,
+        ), // Plus long pour laisser le temps de voir
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         action: SnackBarAction(
-          label: 'Voir',
-          textColor: Colors.white,
+          label: 'OUVRIR',
+          textColor: Colors.amber,
           onPressed: () {
-            // Ouvre le détail de la demande dans un BottomSheet
             _showRequestDetailsBottomSheet(
               context,
               ref,
               request,
-              Colors.orange, // Couleur pour "En attente"
+              Colors.orange,
               'En attente',
             );
           },
         ),
       ),
+    );
+
+    // Si l'artisan ne clique pas sur le bouton "OUVRIR", la modale surgit quand même après 1.5 seconde
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      // On vérifie que le contexte est toujours valide avant d'ouvrir
+      if (Navigator.canPop(context) || context.mounted) {
+        // Optionnel : décommentez la ligne ci-dessous si vous voulez forcer l'ouverture automatique
+        _showRequestDetailsBottomSheet(
+          context,
+          ref,
+          request,
+          Colors.orange,
+          'En attente',
+        );
+      }
+    });
+  }
+
+  int getResponsiveColumnCount(double width) {
+    if (width > 900) return 3;
+    if (width > 600) return 2;
+    return 1;
+  }
+
+  Widget _buildNotificationBadge(WidgetRef ref) {
+    final requestsAsync = ref.watch(professionalRequestsProvider);
+
+    return requestsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (requests) {
+        // Filtrer pour obtenir uniquement le nombre de demandes en attente
+        final pendingCount = requests
+            .where((req) => req.status == RequestStatus.enAttente)
+            .length;
+
+        // Si aucune demande n'est en attente, on n'affiche pas le badge rouge
+        if (pendingCount == 0) {
+          return const Icon(Icons.notifications_none);
+        }
+
+        // Affichage du badge avec le compteur exact
+        return Badge(
+          backgroundColor: Colors.red,
+          label: Text(
+            '$pendingCount',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+          child: const Icon(Icons.notifications),
+        );
+      },
     );
   }
 
@@ -89,6 +174,25 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
           backgroundColor: const Color(0xFF0F5234), // Vert ProxServ
           foregroundColor: Colors.white,
           actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: IconButton(
+                icon: _buildNotificationBadge(ref),
+                tooltip: 'Demandes en attente',
+                onPressed: () {
+                  // Optionnel pour le jury : Un clic peut faire défiler l'écran
+                  // directement vers la liste des demandes
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Consultez vos demandes en attente ci-dessous.',
+                      ),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () => ref.read(firebaseAuthProvider).signOut(),
@@ -182,7 +286,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                       ),
                     ),
 
-                    // --- SECTION 3 : LISTE DES DEMANDES EN TEMPS RÉEL ---
+                    // --- SECTION 3 : LISTE DES DEMANDES EN TEMPS REEL ---
                     Expanded(
                       child: requestsAsync.when(
                         loading: () =>
@@ -206,37 +310,36 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                           }
 
                           // GridView en paysage (2 colonnes) et ListView en portrait (1 colonne)
-                          return isLandscape
-                              ? GridView.builder(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 2,
-                                        childAspectRatio:
-                                            2.2, // Ajuster selon le contenu de vos cartes
-                                        mainAxisSpacing: 8,
-                                        crossAxisSpacing: 8,
-                                      ),
-                                  itemCount: requests.length,
-                                  itemBuilder: (context, index) {
-                                    return _buildRequestCard(
-                                      context,
-                                      ref,
-                                      requests[index],
-                                    );
-                                  },
-                                )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  itemCount: requests.length,
-                                  itemBuilder: (context, index) {
-                                    return _buildRequestCard(
-                                      context,
-                                      ref,
-                                      requests[index],
-                                    );
-                                  },
-                                );
+                          return GridView.builder(
+                            padding: const EdgeInsets.only(
+                              bottom: 16,
+                              left: 8,
+                              right: 8,
+                            ),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: isLandscape
+                                  ? 2
+                                  : getResponsiveColumnCount(
+                                      constraints.maxWidth,
+                                    ),
+
+                              childAspectRatio: isLandscape
+                                  ? (constraints.maxWidth > 800
+                                        ? 2.5
+                                        : 1.7) // 👈 MODIFICATION : Donne plus de hauteur à la carte si la largeur Web diminue
+                                  : 2.3,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                            ),
+                            itemCount: requests.length,
+                            itemBuilder: (context, index) {
+                              return _buildRequestCard(
+                                context,
+                                ref,
+                                requests[index],
+                              );
+                            },
+                          );
                         },
                       ),
                     ),
@@ -358,21 +461,23 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -381,11 +486,13 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
               const SizedBox(height: 10),
 
               // --- DESCRIPTION COMPACTE ---
-              Text(
-                request.description ?? 'Aucune description fournie',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Expanded(
+                child: Text(
+                  request.description ?? 'Aucune description fournie',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(height: 8),
 
@@ -440,197 +547,203 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     String statusText,
   ) {
     final isEnAttente = request.status == RequestStatus.enAttente;
-
     showModalBottomSheet(
       context: context,
-      isScrollControlled:
-          true, // Permet à la modale de s'adapter si le contenu est long
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            top: 20,
-            left: 20,
-            right: 20,
-            // S'adapte au clavier virtuel ou aux barres de navigation du téléphone
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize
-                .min, // La modale prend uniquement la hauteur nécessaire
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Petite barre supérieure de décoration pour la modale
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        return DraggableScrollableSheet(
+          // 👈 MODIFICATION : Permet un défilement complet en cas de petits écrans ou mode paysage sur Chrome
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              const SizedBox(height: 20),
-
-              // --- TITRE ET STATUT ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Détails de l\'intervention',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF0F5234),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          "Détails de l'intervention",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F5234),
+                          ),
+                        ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 30),
+                  const Text(
+                    'Client',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    request.clientName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Adresse d'intervention",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  // const SizedBox(height: 4),
+                  // Text(
+                  //   request.adresse ?? 'Adresse non spécifiée',
+                  //   style: const TextStyle(fontSize: 15),
+                  // ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Description de la panne / demande',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    request.description ?? 'Aucune description fournie',
+                    style: const TextStyle(fontSize: 15, height: 1.4),
+                  ),
+                  const SizedBox(height: 24),
+                  if (isEnAttente)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade50,
+                              foregroundColor: Colors.red,
+                              elevation: 0,
+                              side: BorderSide(color: Colors.red.shade200),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onPressed: () {
+                              ref
+                                  .read(requestActionsProvider)
+                                  .updateRequestStatus(
+                                    request.id,
+                                    RequestStatus.refusee,
+                                  );
+                              Navigator.pop(
+                                context,
+                              ); //  Ferme le BottomSheet après action
+                            },
+                            child: const Text(
+                              'Refuser la demande',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F5234),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onPressed: () {
+                              ref
+                                  .read(requestActionsProvider)
+                                  .updateRequestStatus(
+                                    request.id,
+                                    RequestStatus.acceptee,
+                                  );
+                              Navigator.pop(
+                                context,
+                              ); //  Ferme le BottomSheet après action
+                            },
+                            child: const Text(
+                              'Accepter',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Fermer',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              const Divider(height: 30),
-
-              // --- NOM DU CLIENT ---
-              const Text(
-                'Client',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                request.clientName,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // --- ADRESSE D'INTERVENTION ---
-              const Text(
-                'Adresse d\'intervention',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- DESCRIPTION COMPLÈTE ---
-              const Text(
-                'Description de la panne / demande',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                request.description ?? 'Aucune description fournie',
-                style: const TextStyle(fontSize: 15, height: 1.4),
-              ),
-              const SizedBox(height: 24),
-
-              // --- BOUTONS D'ACTION ---
-              if (isEnAttente)
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade50,
-                          foregroundColor: Colors.red,
-                          elevation: 0,
-                          side: BorderSide(color: Colors.red.shade200),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () => ref
-                            .read(requestActionsProvider)
-                            .updateRequestStatus(
-                              request.id,
-                              RequestStatus.refusee,
-                            ),
-
-                        child: const Text(
-                          'Refuser la demande',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F5234),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () => ref
-                            .read(requestActionsProvider)
-                            .updateRequestStatus(
-                              request.id,
-                              RequestStatus.acceptee,
-                            ),
-                        child: const Text(
-                          'Accepter',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                //bouton de fermeture si l'intervention est déjà traitée
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Fermer',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
