@@ -11,6 +11,9 @@ import 'presentation/screens/professional_dashboard_screen.dart';
 import 'presentation/screens/professional_detail_screen.dart';
 import 'presentation/screens/admin_dashboard_screen.dart';
 import 'presentation/screens/blocked_screen.dart';
+import 'presentation/screens/chat/chat_screen.dart';
+import 'presentation/screens/dashboard/dashboard_shell.dart';
+import 'presentation/navigation/chat_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   // On écoute le statut de l'utilisateur pour forcer une réévaluation des routes s'il change
@@ -86,12 +89,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // --- ESPACE CLIENT ---
       GoRoute(
         path: '/client/home',
-        builder: (context, state) => ClientHomeScreen(
+        builder: (context, state) => DashboardShell(
           // Ici on branche vraiment la fiche professionnel : au clic sur
           // un professionnel, on pousse la route dédiée en lui passant le
           // profil sélectionné.
-          onSelect: (pro) =>
-              context.push('/client/professional', extra: pro),
+          home: ClientHomeScreen(
+            onSelect: (pro) =>
+                context.push('/client/professional', extra: pro),
+          ),
         ),
       ),
       GoRoute(
@@ -103,7 +108,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       // --- ESPACE PROFESSIONNEL ---
       GoRoute(
         path: '/professional/dashboard',
-        builder: (context, state) => const ProfessionalDashboardScreen(),
+        builder: (context, state) =>
+            const DashboardShell(home: ProfessionalDashboardScreen()),
+      ),
+      // Conversation rattachée à une demande, commune aux deux rôles.
+      GoRoute(
+        path: chatRoutePattern,
+        builder: (context, state) => ChatScreen(
+          requestId: state.pathParameters[chatRequestIdParam]!,
+        ),
       ),
       // --- ESPACE ADMIN ---
       GoRoute(
