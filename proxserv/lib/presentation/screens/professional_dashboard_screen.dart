@@ -8,6 +8,7 @@ import '../../data/models/enums.dart';
 class ProfessionalDashboardScreen extends ConsumerWidget {
   const ProfessionalDashboardScreen({super.key});
 
+  //Fonction pour déclencher l'alerte sonore et visuelle lorsqu'une nouvelle demande est reçue
   void _triggerIncomingRequestAlert(
     BuildContext context,
     WidgetRef ref,
@@ -50,32 +51,33 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     final requestsAsync = ref.watch(professionalRequestsProvider);
 
     // Système d'écoute de la notification push pour les demandes d'intervention
-    ref.listen<AsyncValue<List<ServiceRequest>>>(
-      professionalRequestsProvider,
-      (previous, next) {
-        // On s'assure que les données sont correctement chargées
-        if (next is AsyncData<List<ServiceRequest>>) {
-          final nextRequests = next.value;
-          final previousRequests = previous?.value ?? [];
+    ref.listen<AsyncValue<List<ServiceRequest>>>(professionalRequestsProvider, (
+      previous,
+      next,
+    ) {
+      // On s'assure que les données sont correctement chargées
+      if (next is AsyncData<List<ServiceRequest>>) {
+        final nextRequests = next.value;
+        final previousRequests = previous?.value ?? [];
 
-          //Filtrer les demandes actuellement "En attente"
-          final newPendingRequests = nextRequests.where(
-            (req) => req.status == RequestStatus.enAttente
-          ).toList();
+        //Filtrer les demandes actuellement "En attente"
+        final newPendingRequests = nextRequests
+            .where((req) => req.status == RequestStatus.enAttente)
+            .toList();
 
-          //Détecter s'il y a une NOUVELLE demande par rapport à la liste précédente
-          if (newPendingRequests.length > previousRequests.where((req) => req.status == RequestStatus.enAttente).length) {
-            // Récupérer la demande la plus récente
-            final newestRequest = newPendingRequests.last;
+        //Détecter s'il y a une nouvelle demande par rapport à la liste précédente
+        if (newPendingRequests.length >
+            previousRequests
+                .where((req) => req.status == RequestStatus.enAttente)
+                .length) {
+          // Récupérer la demande la plus récente
+          final newestRequest = newPendingRequests.last;
 
-            //Déclencher l'alerte sonore et visuelle
-            _triggerIncomingRequestAlert(context, ref, newestRequest);
-          }
+          //Déclencher l'alerte sonore et visuelle
+          _triggerIncomingRequestAlert(context, ref, newestRequest);
         }
-      },
-    );
-
-    
+      }
+    });
 
     return SafeArea(
       child: Scaffold(
@@ -261,7 +263,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
           size: 28,
         ),
         const SizedBox(width: 10),
-        // Flexible ou Text court indispensable pour éviter les crashs d'affichage
+
         Flexible(
           child: Text(
             isDisponible ? 'En ligne' : 'Hors ligne',
@@ -633,6 +635,4 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
       },
     );
   }
-
-  
 }
