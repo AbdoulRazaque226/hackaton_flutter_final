@@ -11,8 +11,11 @@ class AdminDashboardScreen extends StatefulWidget {
   final FirebaseService firebaseService;
   final void Function()? onLogout;
 
-  AdminDashboardScreen({super.key, FirebaseService? firebaseService, this.onLogout})
-      : firebaseService = firebaseService ?? FirebaseService();
+  AdminDashboardScreen({
+    super.key,
+    FirebaseService? firebaseService,
+    this.onLogout,
+  }) : firebaseService = firebaseService ?? FirebaseService();
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -59,8 +62,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       await widget.firebaseService.setUserBlocked(user.uid, !user.bloque);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
@@ -93,7 +97,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: const Text('Administration'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Colors.red),
             tooltip: 'Se déconnecter',
             onPressed: _logout,
           ),
@@ -109,10 +113,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             return Center(child: Text('Erreur : ${usersSnapshot.error}'));
           }
           final users = usersSnapshot.data ?? [];
-          final totalClients =
-              users.where((u) => u.role == UserRole.client).length;
-          final totalPros =
-              users.where((u) => u.role == UserRole.professionnel).length;
+          final totalClients = users
+              .where((u) => u.role == UserRole.client)
+              .length;
+          final totalPros = users
+              .where((u) => u.role == UserRole.professionnel)
+              .length;
 
           return Column(
             children: [
@@ -121,12 +127,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: _StatCard(label: 'Clients', value: '$totalClients'),
+                      child: _StatCard(
+                        label: 'Clients',
+                        value: '$totalClients',
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _StatCard(
-                          label: 'Professionnels', value: '$totalPros'),
+                        label: 'Professionnels',
+                        value: '$totalPros',
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -147,7 +158,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const Divider(height: 1),
               Expanded(
                 child: users.isEmpty
-                    ? const Center(child: Text('Aucun utilisateur pour le moment.'))
+                    ? const Center(
+                        child: Text('Aucun utilisateur pour le moment.'),
+                      )
                     : ListView.builder(
                         padding: const EdgeInsets.all(12),
                         itemCount: users.length,
@@ -156,8 +169,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           return Card(
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor:
-                                    _roleColor(user.role).withValues(alpha: 0.15),
+                                backgroundColor: _roleColor(
+                                  user.role,
+                                ).withValues(alpha: 0.15),
                                 child: Icon(
                                   user.bloque ? Icons.block : Icons.person,
                                   color: _roleColor(user.role),
@@ -178,7 +192,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     label: Text(
                                       _roleLabel(user.role),
                                       style: const TextStyle(
-                                          color: Colors.white, fontSize: 12),
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                     backgroundColor: _roleColor(user.role),
                                   ),
@@ -225,11 +241,12 @@ class _StatCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         child: Column(
           children: [
-            Text(value,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
             Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
