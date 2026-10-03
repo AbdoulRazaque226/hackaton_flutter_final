@@ -1,30 +1,35 @@
-// // This is a basic Flutter widget test.
-// //
-// // To perform an interaction with a widget in your test, use the WidgetTester
-// // utility in the flutter_test package. For example, you can send tap and scroll
-// // gestures. You can also use WidgetTester to find child widgets in the widget
-// // tree, read text, and verify that the values of widget properties are correct.
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:proxserv/data/models/enums.dart';
+import 'package:proxserv/data/models/professional_profile.dart';
+import 'package:proxserv/presentation/widgets/professional_card.dart';
 
-// import 'package:flutter/material.dart';
-// import 'package:flutter_test/flutter_test.dart';
+void main() {
+  testWidgets('ProfessionalCard displays profile name and metier correctly', (
+    WidgetTester tester,
+  ) async {
+    final testProfile = ProfessionalProfile(
+      uid: 'pro_123',
+      displayName: 'Kouassi Jean',
+      metier: Metier.plombier,
+      phone: '0102030405',
+      zoneIntervention: 'Cocody, Abidjan',
+      disponible: true,
+      latitude: 5.35,
+      longitude: -4.00,
+      noteMoyenne: 4.8,
+      nombreEvaluations: 12,
+    );
 
-// import 'package:proxserv/main.dart';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ProfessionalCard(profile: testProfile)),
+      ),
+    );
 
-// void main() {
-//   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-//     // Build our app and trigger a frame.
-//     await tester.pumpWidget(const MyApp());
-
-//     // Verify that our counter starts at 0.
-//     expect(find.text('0'), findsOneWidget);
-//     expect(find.text('1'), findsNothing);
-
-//     // Tap the '+' icon and trigger a frame.
-//     await tester.tap(find.byIcon(Icons.add));
-//     await tester.pump();
-
-//     // Verify that our counter has incremented.
-//     expect(find.text('0'), findsNothing);
-//     expect(find.text('1'), findsOneWidget);
-//   });
-// }
+    expect(find.text('Kouassi Jean'), findsOneWidget);
+    expect(find.text('Plombier'), findsOneWidget);
+    expect(find.text('Disponible'), findsOneWidget);
+    expect(find.text('Cocody, Abidjan'), findsOneWidget);
+  });
+}

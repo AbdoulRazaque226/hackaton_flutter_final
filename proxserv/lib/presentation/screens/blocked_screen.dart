@@ -11,13 +11,14 @@ class BlockedScreen extends StatelessWidget {
   final void Function()? onLogout;
 
   BlockedScreen({super.key, FirebaseService? firebaseService, this.onLogout})
-      : firebaseService = firebaseService ?? FirebaseService();
+    : firebaseService = firebaseService ?? FirebaseService();
 
   Future<void> _logout(BuildContext context) async {
     await firebaseService.signOut();
     if (onLogout != null) {
       onLogout!();
     } else {
+      if (!context.mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
         (route) => false,

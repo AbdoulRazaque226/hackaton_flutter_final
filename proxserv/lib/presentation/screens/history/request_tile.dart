@@ -168,8 +168,7 @@ class RequestTile extends StatelessWidget {
   }
 }
 
-/// Pastille de statut — mêmes couleurs et libellés que le suivi déjà présent
-/// dans l'application, pour que l'historique reste cohérent avec le reste.
+/// Pastille de statut — couleurs et libellés selon la Mission 2A.
 class RequestStatusChip extends StatelessWidget {
   final RequestStatus status;
 
@@ -179,25 +178,40 @@ class RequestStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (background, foreground, icon) = switch (status) {
       RequestStatus.enAttente => (
-          Colors.orange.shade50,
-          Colors.orange.shade800,
-          Icons.hourglass_empty,
-        ),
+        const Color(0xFFFEF3C7),
+        const Color(0xFFD97706),
+        Icons.hourglass_empty,
+      ),
       RequestStatus.acceptee => (
-          Colors.blue.shade50,
-          Colors.blue.shade800,
-          Icons.check_circle_outline,
-        ),
-      RequestStatus.refusee => (
-          Colors.red.shade50,
-          Colors.red.shade800,
-          Icons.cancel_outlined,
-        ),
+        const Color(0xFFDBEAFE),
+        const Color(0xFF2563EB),
+        Icons.check_circle_outline,
+      ),
+      RequestStatus.enCours => (
+        const Color(0xFFDBEAFE),
+        const Color(0xFF2563EB),
+        Icons.sync,
+      ),
       RequestStatus.terminee => (
-          Colors.green.shade50,
-          Colors.green.shade800,
-          Icons.task_alt,
-        ),
+        const Color(0xFFDCFCE7),
+        const Color(0xFF16A34A),
+        Icons.task_alt,
+      ),
+      RequestStatus.refusee => (
+        const Color(0xFFFEE2E2),
+        const Color(0xFFDC2626),
+        Icons.cancel_outlined,
+      ),
+      RequestStatus.annulee => (
+        const Color(0xFFF1F5F9),
+        const Color(0xFF64748B),
+        Icons.do_not_disturb,
+      ),
+      RequestStatus.sansReponse => (
+        const Color(0xFFF1F5F9),
+        const Color(0xFF94A3B8),
+        Icons.help_outline,
+      ),
     };
 
     return Container(

@@ -88,20 +88,16 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
       });
 
       if (_isPro && widget.profile != null) {
-        await firestore
-            .collection('professionals')
-            .doc(widget.user.uid)
-            .update({
-              'metier': _metier.name,
-              'zoneIntervention': _zone.text.trim(),
-            });
+        await firestore.collection('professionals').doc(widget.user.uid).update(
+          {'metier': _metier.name, 'zoneIntervention': _zone.text.trim()},
+        );
       }
 
       if (!mounted) return;
       setState(() => _dirty = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis à jour.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profil mis à jour.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -129,18 +125,17 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                 child: Text(
                   _initials(_name.text),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 _roleLabel(widget.user.role),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -192,10 +187,7 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
 
         if (_isPro) ...[
           const SizedBox(height: 20),
-          Text(
-            'Activité',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          Text('Activité', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 10),
           DropdownButtonFormField<Metier>(
             initialValue: _metier,
@@ -271,7 +263,7 @@ String _initials(String name) {
 }
 
 String _roleLabel(UserRole role) => switch (role) {
-      UserRole.client => 'Client',
-      UserRole.professionnel => 'Professionnel',
-      UserRole.admin => 'Administrateur',
-    };
+  UserRole.client => 'Client',
+  UserRole.professionnel => 'Professionnel',
+  UserRole.admin => 'Administrateur',
+};

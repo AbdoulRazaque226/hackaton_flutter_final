@@ -268,8 +268,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _confirmController,
                       obscureText: _obscurePassword,
                       // Pour un professionnel, d'autres champs suivent.
-                      textInputAction:
-                          _isPro ? TextInputAction.next : TextInputAction.done,
+                      textInputAction: _isPro
+                          ? TextInputAction.next
+                          : TextInputAction.done,
                       onFieldSubmitted: (_) {
                         if (!_isPro && !_loading) _submit();
                       },
@@ -448,6 +449,8 @@ IconData metierIcon(Metier metier) {
       return Icons.format_paint;
     case Metier.reparateur:
       return Icons.build_outlined;
+    case Metier.nettoyage:
+      return Icons.cleaning_services;
     case Metier.autre:
       return Icons.handyman_outlined;
   }

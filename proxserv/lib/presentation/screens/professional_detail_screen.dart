@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/models/professional_profile.dart';
-import 'request_form_screen.dart';
 
 /// Écran de fiche détaillée d'un professionnel.
 class ProfessionalDetailScreen extends StatelessWidget {
@@ -18,9 +18,7 @@ class ProfessionalDetailScreen extends StatelessWidget {
   Future<void> _makePhoneCall(BuildContext context) async {
     if (profile.phone.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Numéro de téléphone non renseigné.'),
-        ),
+        const SnackBar(content: Text('Numéro de téléphone non renseigné.')),
       );
       return;
     }
@@ -33,17 +31,17 @@ class ProfessionalDetailScreen extends StatelessWidget {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Impossible de passer l\'appel vers ${profile.phone}'),
+            content: Text(
+              'Impossible de passer l\'appel vers ${profile.phone}',
+            ),
           ),
         );
       }
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de l\'appel : $e'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur lors de l\'appel : $e')));
     }
   }
 
@@ -51,12 +49,7 @@ class ProfessionalDetailScreen extends StatelessWidget {
     if (onRequestIntervention != null) {
       onRequestIntervention!();
     } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RequestFormScreen(professional: profile),
-        ),
-      );
+      context.push('/client/request-form', extra: profile);
     }
   }
 
@@ -73,9 +66,7 @@ class ProfessionalDetailScreen extends StatelessWidget {
         : 'Aucune évaluation';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Fiche Professionnel'),
-      ),
+      appBar: AppBar(title: const Text('Fiche Professionnel')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -246,7 +237,9 @@ class ProfessionalDetailScreen extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            disponible ? 'Disponible pour intervention' : 'Actuellement indisponible',
+            disponible
+                ? 'Disponible pour intervention'
+                : 'Actuellement indisponible',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: disponible ? Colors.green.shade800 : Colors.red.shade800,

@@ -9,11 +9,8 @@ class MyRequestsScreen extends StatelessWidget {
   final String? clientId;
   final FirebaseService firebaseService;
 
-  MyRequestsScreen({
-    super.key,
-    this.clientId,
-    FirebaseService? firebaseService,
-  }) : firebaseService = firebaseService ?? FirebaseService();
+  MyRequestsScreen({super.key, this.clientId, FirebaseService? firebaseService})
+    : firebaseService = firebaseService ?? FirebaseService();
 
   @override
   Widget build(BuildContext context) {
@@ -21,9 +18,7 @@ class MyRequestsScreen extends StatelessWidget {
         clientId ?? firebaseService.currentUser?.uid ?? '';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mes demandes d\'intervention'),
-      ),
+      appBar: AppBar(title: const Text('Mes demandes d\'intervention')),
       body: effectiveClientId.isEmpty
           ? const Center(
               child: Text(
@@ -35,9 +30,7 @@ class MyRequestsScreen extends StatelessWidget {
               stream: firebaseService.watchRequestsForClient(effectiveClientId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
 
                 if (snapshot.hasError) {
@@ -115,9 +108,7 @@ class _RequestItemCard extends StatelessWidget {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 16.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -218,6 +209,11 @@ class _RequestItemCard extends StatelessWidget {
         textColor = Colors.blue.shade800;
         icon = Icons.check_circle_outline;
         break;
+      case RequestStatus.enCours:
+        backgroundColor = Colors.blue.shade50;
+        textColor = Colors.blue.shade800;
+        icon = Icons.sync;
+        break;
       case RequestStatus.refusee:
         backgroundColor = Colors.red.shade50;
         textColor = Colors.red.shade800;
@@ -227,6 +223,16 @@ class _RequestItemCard extends StatelessWidget {
         backgroundColor = Colors.green.shade50;
         textColor = Colors.green.shade800;
         icon = Icons.task_alt;
+        break;
+      case RequestStatus.annulee:
+        backgroundColor = const Color(0xFFF1F5F9);
+        textColor = const Color(0xFF64748B);
+        icon = Icons.do_not_disturb;
+        break;
+      case RequestStatus.sansReponse:
+        backgroundColor = const Color(0xFFF1F5F9);
+        textColor = const Color(0xFF94A3B8);
+        icon = Icons.help_outline;
         break;
     }
 

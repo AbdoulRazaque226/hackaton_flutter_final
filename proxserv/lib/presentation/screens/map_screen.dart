@@ -74,8 +74,9 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final me = _me;
-    final center =
-        me != null ? LatLng(me.latitude, me.longitude) : _fallbackCenter;
+    final center = me != null
+        ? LatLng(me.latitude, me.longitude)
+        : _fallbackCenter;
 
     // Seuls les professionnels disponibles ET positionnés apparaissent.
     final visible = widget.professionals
@@ -102,7 +103,12 @@ class _MapScreenState extends State<MapScreen> {
       ),
       body: Column(
         children: [
-          if (_problem != null) _ProblemBanner(problem: _problem!, service: widget.locationService, onRetry: _locateMe),
+          if (_problem != null)
+            _ProblemBanner(
+              problem: _problem!,
+              service: widget.locationService,
+              onRetry: _locateMe,
+            ),
           if (_loading) const LinearProgressIndicator(),
           Expanded(
             child: FlutterMap(
@@ -113,8 +119,7 @@ class _MapScreenState extends State<MapScreen> {
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.proxserv.proxserv',
                 ),
-                if (_showZones)
-                  CircleLayer(circles: _zoneCircles(visible)),
+                if (_showZones) CircleLayer(circles: _zoneCircles(visible)),
                 MarkerLayer(
                   markers: [
                     if (me != null)
@@ -122,8 +127,11 @@ class _MapScreenState extends State<MapScreen> {
                         point: LatLng(me.latitude, me.longitude),
                         width: 40,
                         height: 40,
-                        child: const Icon(Icons.person_pin_circle,
-                            color: Colors.blue, size: 40),
+                        child: const Icon(
+                          Icons.person_pin_circle,
+                          color: Colors.blue,
+                          size: 40,
+                        ),
                       ),
                     for (final p in visible)
                       Marker(
@@ -132,8 +140,11 @@ class _MapScreenState extends State<MapScreen> {
                         height: 44,
                         child: GestureDetector(
                           onTap: () => _showPro(p),
-                          child: const Icon(Icons.location_on,
-                              color: Colors.green, size: 44),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.green,
+                            size: 44,
+                          ),
                         ),
                       ),
                   ],
@@ -175,8 +186,10 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   LatLng _centroid(List<ProfessionalProfile> pros) {
-    final lat = pros.map((p) => p.latitude).reduce((a, b) => a + b) / pros.length;
-    final lon = pros.map((p) => p.longitude).reduce((a, b) => a + b) / pros.length;
+    final lat =
+        pros.map((p) => p.latitude).reduce((a, b) => a + b) / pros.length;
+    final lon =
+        pros.map((p) => p.longitude).reduce((a, b) => a + b) / pros.length;
     return LatLng(lat, lon);
   }
 
@@ -194,14 +207,15 @@ class _MapScreenState extends State<MapScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(pro.displayName,
-                style: Theme.of(ctx).textTheme.titleLarge),
+            Text(pro.displayName, style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 4),
             Text('${pro.metier.label} · ${pro.zoneIntervention}'),
             const SizedBox(height: 4),
-            Text(me == null
-                ? 'Activez la localisation pour voir la distance'
-                : 'À ${formatDistance(km)} de vous'),
+            Text(
+              me == null
+                  ? 'Activez la localisation pour voir la distance'
+                  : 'À ${formatDistance(km)} de vous',
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,

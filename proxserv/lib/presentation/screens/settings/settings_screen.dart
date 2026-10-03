@@ -3,38 +3,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers/app_providers.dart';
 import '../../../application/providers/settings_providers.dart';
+import '../../../core/localization/app_localizations.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/models/app_user.dart';
 
-/// Onglet « Paramètres » du dashboard.
-///
-/// Tout ce qui est proposé ici agit réellement :
-/// - la disponibilité du professionnel passe par le provider existant ;
-/// - les préférences sont persistées dans le document de l'utilisateur ;
-/// - la déconnexion passe par Firebase Auth.
-///
-/// La suppression de compte n'est volontairement pas proposée : les règles
-/// Firestore interdisent aujourd'hui toute suppression (`allow delete: if
-/// false`), l'option serait inopérante.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider).value;
-    final prefs = ref.watch(userPreferencesProvider).value ??
-        const <String, dynamic>{};
+    final prefs =
+        ref.watch(userPreferencesProvider).value ?? const <String, dynamic>{};
+    final loc = AppLocalizations.of(context, ref);
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final isPro = user.role == UserRole.professionnel;
     final profile = ref.watch(professionalProfileProvider).value;
+    final currentTheme = prefs['theme'] as String? ?? 'system';
+    final currentLang =
+        prefs['language'] as String? ?? (loc.isFr ? 'fr' : 'en');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Paramètres')),
+      appBar: AppBar(title: Text(loc.settingsTab)),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
@@ -52,7 +46,60 @@ class SettingsScreen extends ConsumerWidget {
             enabled: false,
           ),
 
-          // La disponibilité n'existe que pour un professionnel.
+          // Apparence (Clair / Sombre / Système)
+          _SectionTitle(loc.appearance),
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: Text(loc.appearance),
+            subtitle: Text(
+              currentTheme == 'light'
+                  ? loc.lightTheme
+                  : currentTheme == 'dark'
+                  ? loc.darkTheme
+                  : loc.systemTheme,
+            ),
+            trailing: DropdownButton<String>(
+              value: currentTheme,
+              underline: const SizedBox.shrink(),
+              items: [
+                DropdownMenuItem(value: 'system', child: Text(loc.systemTheme)),
+                DropdownMenuItem(value: 'light', child: Text(loc.lightTheme)),
+                DropdownMenuItem(value: 'dark', child: Text(loc.darkTheme)),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setPreference(ref, user.uid, 'theme', val);
+                }
+              },
+            ),
+          ),
+
+          // Langue (Français / English)
+          _SectionTitle(loc.languageSection),
+          ListTile(
+            leading: const Icon(Icons.language_outlined),
+            title: Text(loc.languageSection),
+            subtitle: Text(currentLang == 'en' ? loc.english : loc.french),
+            trailing: DropdownButton<String>(
+              value: currentLang,
+              underline: const SizedBox.shrink(),
+              items: [
+                DropdownMenuItem(value: 'fr', child: Text(loc.french)),
+                DropdownMenuItem(value: 'en', child: Text(loc.english)),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setPreference(ref, user.uid, 'language', val);
+                  ref
+                      .read(appLanguageNotifierProvider.notifier)
+                      .setLanguage(
+                        val == 'en' ? AppLanguage.en : AppLanguage.fr,
+                      );
+                }
+              },
+            ),
+          ),
+
           if (isPro) ...[
             const _SectionTitle('Disponibilité'),
             SwitchListTile(
@@ -61,8 +108,8 @@ class SettingsScreen extends ConsumerWidget {
                     ? Icons.check_circle
                     : Icons.do_not_disturb_on,
                 color: (profile?.disponible ?? false)
-                    ? Colors.green
-                    : Colors.red,
+                    ? AppColors.success
+                    : AppColors.error,
               ),
               title: Text(
                 (profile?.disponible ?? false)
@@ -78,8 +125,8 @@ class SettingsScreen extends ConsumerWidget {
               onChanged: profile == null
                   ? null
                   : (_) => ref
-                      .read(professionalProfileProvider.notifier)
-                      .toggleAvailability(),
+                        .read(professionalProfileProvider.notifier)
+                        .toggleAvailability(),
             ),
           ],
 
@@ -104,12 +151,13 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: OutlinedButton.icon(
+            child: ElevatedButton.icon(
               onPressed: () => ref.read(firebaseAuthProvider).signOut(),
               icon: const Icon(Icons.logout),
-              label: const Text('Se déconnecter'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
+              label: Text(loc.logout),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
               ),
             ),
           ),
@@ -133,7 +181,7 @@ class _SectionTitle extends StatelessWidget {
       child: Text(
         title,
         style: theme.textTheme.labelLarge?.copyWith(
-          color: theme.colorScheme.primary,
+          color: AppColors.brandPrimary,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -142,7 +190,7 @@ class _SectionTitle extends StatelessWidget {
 }
 
 String _roleLabel(UserRole role) => switch (role) {
-      UserRole.client => 'Client',
-      UserRole.professionnel => 'Professionnel',
-      UserRole.admin => 'Administrateur',
-    };
+  UserRole.client => 'Client',
+  UserRole.professionnel => 'Professionnel',
+  UserRole.admin => 'Administrateur',
+};

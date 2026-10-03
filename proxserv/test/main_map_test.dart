@@ -15,25 +15,41 @@ class _Demo extends StatelessWidget {
   Widget build(BuildContext context) {
     const pros = [
       ProfessionalProfile(
-        uid: '1', displayName: 'Kouassi Yao', phone: '0700000001',
-        metier: Metier.plombier, zoneIntervention: 'Cocody',
-        disponible: true, latitude: 5.3599, longitude: -3.9989,
+        uid: '1',
+        displayName: 'Kouassi Yao',
+        phone: '0700000001',
+        metier: Metier.plombier,
+        zoneIntervention: 'Cocody',
+        disponible: true,
+        latitude: 5.3599,
+        longitude: -3.9989,
       ),
       ProfessionalProfile(
-        uid: '2', displayName: 'Aya Traoré', phone: '0700000002',
-        metier: Metier.plombier, zoneIntervention: 'Marcory',
-        disponible: true, latitude: 5.3011, longitude: -3.9803,
+        uid: '2',
+        displayName: 'Aya Traoré',
+        phone: '0700000002',
+        metier: Metier.plombier,
+        zoneIntervention: 'Marcory',
+        disponible: true,
+        latitude: 5.3011,
+        longitude: -3.9803,
       ),
       ProfessionalProfile(
-        uid: '3', displayName: 'Indisponible Test', phone: '0700000003',
-        metier: Metier.plombier, zoneIntervention: 'Yopougon',
-        disponible: false, latitude: 5.3450, longitude: -4.0900,
+        uid: '3',
+        displayName: 'Indisponible Test',
+        phone: '0700000003',
+        metier: Metier.plombier,
+        zoneIntervention: 'Yopougon',
+        disponible: false,
+        latitude: 5.3450,
+        longitude: -4.0900,
       ),
     ];
     return MapScreen(
       professionals: pros,
-      onSelect: (p) => ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Fiche de ${p.displayName}'))),
+      onSelect: (p) => ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Fiche de ${p.displayName}'))),
     );
   }
 }

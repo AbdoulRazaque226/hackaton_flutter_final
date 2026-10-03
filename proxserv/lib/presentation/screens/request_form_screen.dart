@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../data/models/professional_profile.dart';
 import '../../data/services/firebase_service.dart';
 import '../../data/services/location_service.dart';
-import 'my_requests_screen.dart';
 
 /// Écran de création d'une demande d'intervention.
 class RequestFormScreen extends StatefulWidget {
@@ -21,8 +21,8 @@ class RequestFormScreen extends StatefulWidget {
     LocationService? locationService,
     this.clientId,
     this.clientName,
-  })  : firebaseService = firebaseService ?? FirebaseService(),
-        locationService = locationService ?? LocationService();
+  }) : firebaseService = firebaseService ?? FirebaseService(),
+       locationService = locationService ?? LocationService();
 
   @override
   State<RequestFormScreen> createState() => _RequestFormScreenState();
@@ -91,7 +91,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
     try {
       final user = widget.firebaseService.currentUser;
-      final effectiveClientId = widget.clientId ?? user?.uid ?? 'client_inconnu';
+      final effectiveClientId =
+          widget.clientId ?? user?.uid ?? 'client_inconnu';
       String effectiveClientName = widget.clientName ?? user?.displayName ?? '';
 
       if (effectiveClientName.isEmpty && user != null) {
@@ -122,7 +123,9 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Votre demande d\'intervention a été envoyée avec succès !'),
+          content: Text(
+            'Votre demande d\'intervention a été envoyée avec succès !',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -140,21 +143,18 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                Navigator.of(context).pop();
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/client/home');
+                }
               },
               child: const Text('Fermer'),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (_) => MyRequestsScreen(
-                      clientId: effectiveClientId,
-                      firebaseService: widget.firebaseService,
-                    ),
-                  ),
-                );
+                context.go('/client/home');
               },
               child: const Text('Voir mes demandes'),
             ),
@@ -184,9 +184,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     final pro = widget.professional;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Demande d\'intervention'),
-      ),
+      appBar: AppBar(title: const Text('Demande d\'intervention')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Form(
@@ -247,8 +245,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       _isLocating
                           ? 'Récupération de votre position...'
                           : _currentPosition != null
-                              ? 'Position GPS enregistrée'
-                              : (_locationError ?? 'Position non disponible'),
+                          ? 'Position GPS enregistrée'
+                          : (_locationError ?? 'Position non disponible'),
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
@@ -265,7 +263,10 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     _locationError!,
-                    style: TextStyle(color: theme.colorScheme.error, fontSize: 12),
+                    style: TextStyle(
+                      color: theme.colorScheme.error,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
 

@@ -1,43 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../application/providers/app_providers.dart';
-import '../../data/models/service_request.dart';
 import 'package:audioplayers/audioplayers.dart';
+
+import '../../application/providers/app_providers.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/models/enums.dart';
+import '../../data/models/service_request.dart';
 
 class ProfessionalDashboardScreen extends ConsumerWidget {
   const ProfessionalDashboardScreen({super.key});
 
-  //Fonction pour déclencher l'alerte sonore et visuelle lorsqu'une nouvelle demande est reçue
-  //Fonction pour déclencher l'alerte sonore et visuelle lorsqu'une nouvelle demande est reçue
   void _triggerIncomingRequestAlert(
     BuildContext context,
     WidgetRef ref,
     ServiceRequest request,
   ) async {
-    // --- LECTURE DU SON SÉCURISÉE CONTRE LES ERREURS CHROME WEB ---
     try {
       final player = AudioPlayer();
-      // On force la source et la lecture dans un bloc sécurisé
-      await player.play(AssetSource('sounds/notification.mp3'));
+      await player.play(AssetSource('audio/notification_sound.mp3'));
     } catch (e) {
-      debugPrint(
-        "Note Hackathon - Alerte sonore ignorée sur Chrome (S'exécutera sur mobile) : $e",
-      );
+      debugPrint("Alerte sonore ignorée : $e");
     }
 
-    // --- AFFICHAGE DE LA NOTIFICATION VISUELLE FLASH (SNACKBAR) ---
-    // On nettoie d'abord les anciennes SnackBar pour éviter les files d'attente
-    ScaffoldMessenger.of(context).clearSnackBars();
+    if (!context.mounted) return;
 
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            // Petit indicateur clignotant pour attirer l'œil en l'absence de son sur le Web
             const Icon(
               Icons.notification_important,
-              color: Colors.amber,
+              color: AppColors.brandAccent,
               size: 28,
             ),
             const SizedBox(width: 10),
@@ -52,21 +46,19 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF0F5234), // Vert ProxServ
-        duration: const Duration(
-          seconds: 8,
-        ), // Plus long pour laisser le temps de voir
+        backgroundColor: AppColors.brandPrimary,
+        duration: const Duration(seconds: 8),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         action: SnackBarAction(
           label: 'OUVRIR',
-          textColor: Colors.amber,
+          textColor: AppColors.brandAccent,
           onPressed: () {
             _showRequestDetailsBottomSheet(
               context,
               ref,
               request,
-              Colors.orange,
+              AppColors.warning,
               'En attente',
             );
           },
@@ -74,16 +66,13 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
       ),
     );
 
-    // Si l'artisan ne clique pas sur le bouton "OUVRIR", la modale surgit quand même après 1.5 seconde
     Future.delayed(const Duration(milliseconds: 1500), () {
-      // On vérifie que le contexte est toujours valide avant d'ouvrir
-      if (Navigator.canPop(context) || context.mounted) {
-        // Optionnel : décommentez la ligne ci-dessous si vous voulez forcer l'ouverture automatique
+      if (context.mounted) {
         _showRequestDetailsBottomSheet(
           context,
           ref,
           request,
-          Colors.orange,
+          AppColors.warning,
           'En attente',
         );
       }
@@ -101,21 +90,19 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
 
     return requestsAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+
       data: (requests) {
-        // Filtrer pour obtenir uniquement le nombre de demandes en attente
         final pendingCount = requests
             .where((req) => req.status == RequestStatus.enAttente)
             .length;
 
-        // Si aucune demande n'est en attente, on n'affiche pas le badge rouge
         if (pendingCount == 0) {
           return const Icon(Icons.notifications_none);
         }
 
-        // Affichage du badge avec le compteur exact
         return Badge(
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
           label: Text(
             '$pendingCount',
             style: const TextStyle(
@@ -135,30 +122,23 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     final profileAsync = ref.watch(professionalProfileProvider);
     final requestsAsync = ref.watch(professionalRequestsProvider);
 
-    // Système d'écoute de la notification push pour les demandes d'intervention
     ref.listen<AsyncValue<List<ServiceRequest>>>(professionalRequestsProvider, (
       previous,
       next,
     ) {
-      // On s'assure que les données sont correctement chargées
       if (next is AsyncData<List<ServiceRequest>>) {
         final nextRequests = next.value;
         final previousRequests = previous?.value ?? [];
 
-        //Filtrer les demandes actuellement "En attente"
         final newPendingRequests = nextRequests
             .where((req) => req.status == RequestStatus.enAttente)
             .toList();
 
-        //Détecter s'il y a une nouvelle demande par rapport à la liste précédente
         if (newPendingRequests.length >
             previousRequests
                 .where((req) => req.status == RequestStatus.enAttente)
                 .length) {
-          // Récupérer la demande la plus récente
           final newestRequest = newPendingRequests.last;
-
-          //Déclencher l'alerte sonore et visuelle
           _triggerIncomingRequestAlert(context, ref, newestRequest);
         }
       }
@@ -171,7 +151,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
             'Tableau de Bord Artisan',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
-          backgroundColor: const Color(0xFF0F5234), // Vert ProxServ
+          backgroundColor: AppColors.brandPrimary,
           foregroundColor: Colors.white,
           actions: [
             Padding(
@@ -180,8 +160,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                 icon: _buildNotificationBadge(ref),
                 tooltip: 'Demandes en attente',
                 onPressed: () {
-                  // Optionnel pour le jury : Un clic peut faire défiler l'écran
-                  // directement vers la liste des demandes
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
@@ -215,26 +193,21 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
               );
             }
 
-            // LayoutBuilder permet de s'adapter dynamiquement aux contraintes de taille
             return LayoutBuilder(
               builder: (context, constraints) {
-                // Détection du mode paysage ou grand écran
                 final isLandscape =
                     constraints.maxWidth > constraints.maxHeight;
 
                 return Column(
                   children: [
-                    // --- SECTION 1 : BANDEAU DE DISPONIBILITÉ RÉACTIF ET RESPONSIVE ---
                     Container(
-                      width: double
-                          .infinity, // Préférable à MediaQuery pour remplir l'espace disponible
+                      width: double.infinity,
                       padding: const EdgeInsets.all(16.0),
                       color: profile.disponible
-                          ? Colors.green.shade50
-                          : Colors.red.shade50,
+                          ? AppColors.successContainer
+                          : AppColors.errorContainer,
                       child: isLandscape
                           ? Row(
-                              // En paysage, on met tout sur une ligne pour gagner de l'espace vertical
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
                                 _buildStatusIndicator(profile.disponible),
@@ -245,7 +218,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                               ],
                             )
                           : Column(
-                              // En portrait, on garde la structure verticale
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 _buildStatusIndicator(profile.disponible),
@@ -258,7 +230,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                             ),
                     ),
 
-                    // --- SECTION 2 : TITRE DES DEMANDES D'INTERVENTION ---
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16.0,
@@ -268,10 +239,9 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                         children: [
                           const Icon(
                             Icons.assignment,
-                            color: Color(0xFF0F5234),
+                            color: AppColors.brandPrimary,
                           ),
                           const SizedBox(width: 8),
-                          // Flexible empêche le texte de déborder si la police est très grande
                           const Expanded(
                             child: Text(
                               'Demandes d\'intervention reçues',
@@ -286,7 +256,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                       ),
                     ),
 
-                    // --- SECTION 3 : LISTE DES DEMANDES EN TEMPS REEL ---
                     Expanded(
                       child: requestsAsync.when(
                         loading: () =>
@@ -309,28 +278,25 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                             );
                           }
 
-                          // GridView en paysage (2 colonnes) et ListView en portrait (1 colonne)
                           return GridView.builder(
                             padding: const EdgeInsets.only(
                               bottom: 16,
                               left: 8,
                               right: 8,
                             ),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: isLandscape
-                                  ? 2
-                                  : getResponsiveColumnCount(
-                                      constraints.maxWidth,
-                                    ),
-
-                              childAspectRatio: isLandscape
-                                  ? (constraints.maxWidth > 800
-                                        ? 2.5
-                                        : 1.7) // 👈 MODIFICATION : Donne plus de hauteur à la carte si la largeur Web diminue
-                                  : 2.3,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                            ),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: isLandscape
+                                      ? 2
+                                      : getResponsiveColumnCount(
+                                          constraints.maxWidth,
+                                        ),
+                                  childAspectRatio: isLandscape
+                                      ? (constraints.maxWidth > 800 ? 2.5 : 1.7)
+                                      : 2.3,
+                                  mainAxisSpacing: 8,
+                                  crossAxisSpacing: 8,
+                                ),
                             itemCount: requests.length,
                             itemBuilder: (context, index) {
                               return _buildRequestCard(
@@ -353,8 +319,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- SOUS-COMPOSANTS EXTRAITS POUR CLARIFIER LE CODE ---
-
   Widget _buildStatusIndicator(bool isDisponible) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -362,18 +326,17 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
       children: [
         Icon(
           isDisponible ? Icons.check_circle : Icons.do_not_disturb_on,
-          color: isDisponible ? Colors.green : Colors.red,
+          color: isDisponible ? AppColors.success : AppColors.error,
           size: 28,
         ),
         const SizedBox(width: 10),
-
         Flexible(
           child: Text(
             isDisponible ? 'En ligne' : 'Hors ligne',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDisponible ? Colors.green.shade900 : Colors.red.shade900,
+              color: isDisponible ? AppColors.success : AppColors.error,
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -385,7 +348,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
   Widget _buildAvailabilityButton(WidgetRef ref, bool isDisponible) {
     return ElevatedButton.icon(
       style: ElevatedButton.styleFrom(
-        backgroundColor: isDisponible ? Colors.red : Colors.green,
+        backgroundColor: isDisponible ? AppColors.error : AppColors.success,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       ),
@@ -409,28 +372,39 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
 
     switch (request.status) {
       case RequestStatus.enAttente:
-        statusColor = Colors.orange;
+        statusColor = AppColors.warning;
         statusText = 'En attente';
         break;
       case RequestStatus.acceptee:
-        statusColor = Colors.blue;
+        statusColor = AppColors.info;
         statusText = 'Acceptée';
         break;
+      case RequestStatus.enCours:
+        statusColor = AppColors.info;
+        statusText = 'En cours';
+        break;
       case RequestStatus.refusee:
-        statusColor = Colors.grey;
+        statusColor = AppColors.error;
         statusText = 'Refusée';
         break;
       case RequestStatus.terminee:
-        statusColor = Colors.green;
+        statusColor = AppColors.success;
         statusText = 'Terminée';
+        break;
+      case RequestStatus.annulee:
+        statusColor = const Color(0xFF64748B);
+        statusText = 'Annulée';
+        break;
+      case RequestStatus.sansReponse:
+        statusColor = const Color(0xFF94A3B8);
+        statusText = 'Sans réponse';
         break;
     }
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       elevation: 2,
-      clipBehavior: Clip
-          .antiAlias, // Assure que l'effet visuel du clic ne dépasse pas des bords de la carte
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _showRequestDetailsBottomSheet(
           context,
@@ -445,7 +419,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // --- EN-TÊTE : NOM ET STATUT ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -484,50 +457,24 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 10),
-
-              // --- DESCRIPTION COMPACTE ---
               Expanded(
                 child: Text(
-                  request.description ?? 'Aucune description fournie',
+                  request.description.isNotEmpty
+                      ? request.description
+                      : 'Aucune description fournie',
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(height: 8),
-
-              // --- ADRESSE COMPACTE ---
-              // Row(
-              //   children: [
-              //     Icon(
-              //       Icons.location_on,
-              //       size: 14,
-              //       color: Colors.grey.shade600,
-              //     ),
-              //     const SizedBox(width: 4),
-              //     Expanded(
-              //       child: Text(
-              //         request.adresse ?? 'Adresse non spécifiée',
-              //         style: TextStyle(
-              //           fontSize: 12,
-              //           color: Colors.grey.shade600,
-              //           fontStyle: FontStyle.italic,
-              //         ),
-              //         maxLines: 1,
-              //         overflow: TextOverflow.ellipsis,
-              //       ),
-              //     ),
-              //   ],
-              // ),
               const SizedBox(height: 4),
-              // Petit indicateur discret invitant à cliquer
-              Align(
+              const Align(
                 alignment: Alignment.bottomRight,
                 child: Text(
                   'Voir détails...',
                   style: TextStyle(
                     fontSize: 11,
-                    color: const Color(0xFF0F5234),
+                    color: AppColors.brandPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -555,7 +502,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
       ),
       builder: (context) {
         return DraggableScrollableSheet(
-          // 👈 MODIFICATION : Permet un défilement complet en cas de petits écrans ou mode paysage sur Chrome
           initialChildSize: 0.6,
           minChildSize: 0.4,
           maxChildSize: 0.85,
@@ -592,7 +538,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F5234),
+                            color: AppColors.brandPrimary,
                           ),
                         ),
                       ),
@@ -602,7 +548,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                           vertical: 5,
                         ),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.12),
+                          color: statusColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -634,20 +580,6 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    "Adresse d'intervention",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  // const SizedBox(height: 4),
-                  // Text(
-                  //   request.adresse ?? 'Adresse non spécifiée',
-                  //   style: const TextStyle(fontSize: 15),
-                  // ),
-                  const SizedBox(height: 16),
-                  const Text(
                     'Description de la panne / demande',
                     style: TextStyle(
                       fontSize: 12,
@@ -657,7 +589,9 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    request.description ?? 'Aucune description fournie',
+                    request.description.isNotEmpty
+                        ? request.description
+                        : 'Aucune description fournie',
                     style: const TextStyle(fontSize: 15, height: 1.4),
                   ),
                   const SizedBox(height: 24),
@@ -667,10 +601,10 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade50,
-                              foregroundColor: Colors.red,
+                              backgroundColor: AppColors.errorContainer,
+                              foregroundColor: AppColors.error,
                               elevation: 0,
-                              side: BorderSide(color: Colors.red.shade200),
+                              side: const BorderSide(color: AppColors.error),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -683,9 +617,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                                     request.id,
                                     RequestStatus.refusee,
                                   );
-                              Navigator.pop(
-                                context,
-                              ); //  Ferme le BottomSheet après action
+                              Navigator.pop(context);
                             },
                             child: const Text(
                               'Refuser la demande',
@@ -697,7 +629,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F5234),
+                              backgroundColor: AppColors.brandPrimary,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
@@ -711,9 +643,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                                     request.id,
                                     RequestStatus.acceptee,
                                   );
-                              Navigator.pop(
-                                context,
-                              ); //  Ferme le BottomSheet après action
+                              Navigator.pop(context);
                             },
                             child: const Text(
                               'Accepter',

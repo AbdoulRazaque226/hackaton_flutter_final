@@ -58,7 +58,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _sending = true);
 
     try {
-      await ref.read(chatActionsProvider).sendMessage(
+      await ref
+          .read(chatActionsProvider)
+          .sendMessage(
             requestId: widget.requestId,
             senderId: user.uid,
             text: text,
@@ -106,8 +108,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final counterpart = request == null
         ? 'Conversation'
         : role == UserRole.professionnel
-            ? (request.clientName.isNotEmpty ? request.clientName : 'Client')
-            : (_proName(request) ?? 'Professionnel');
+        ? (request.clientName.isNotEmpty ? request.clientName : 'Client')
+        : (_proName(request) ?? 'Professionnel');
 
     return Scaffold(
       appBar: AppBar(
@@ -127,11 +129,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           if (request != null) _ContextHeader(request: request),
           Expanded(child: _buildMessages(role)),
-          _Composer(
-            controller: _controller,
-            sending: _sending,
-            onSend: _send,
-          ),
+          _Composer(controller: _controller, sending: _sending, onSend: _send),
         ],
       ),
     );
@@ -247,7 +245,9 @@ class _Bubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
-        mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: mine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Flexible(
             child: Container(
