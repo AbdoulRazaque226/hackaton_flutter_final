@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/app_user.dart';
-import '../../data/models/enums.dart';
 import '../../data/services/firebase_service.dart';
 import 'login_screen.dart';
 
