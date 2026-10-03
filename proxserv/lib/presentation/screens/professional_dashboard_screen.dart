@@ -2,181 +2,408 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/providers/app_providers.dart';
 import '../../data/models/service_request.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../data/models/enums.dart';
 
 class ProfessionalDashboardScreen extends ConsumerWidget {
   const ProfessionalDashboardScreen({super.key});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    //Écoute du profil de l'artisan (pour le statut disponible)
-    final profileAsync = ref.watch(professionalProfileProvider);
-    //Écoute de la liste des demandes d'intervention en temps réel
-    final requestsAsync = ref.watch(professionalRequestsProvider);
+  //Fonction pour déclencher l'alerte sonore et visuelle lorsqu'une nouvelle demande est reçue
+  //Fonction pour déclencher l'alerte sonore et visuelle lorsqu'une nouvelle demande est reçue
+  void _triggerIncomingRequestAlert(
+    BuildContext context,
+    WidgetRef ref,
+    ServiceRequest request,
+  ) async {
+    // --- LECTURE DU SON SÉCURISÉE CONTRE LES ERREURS CHROME WEB ---
+    try {
+      final player = AudioPlayer();
+      // On force la source et la lecture dans un bloc sécurisé
+      await player.play(AssetSource('sounds/notification.mp3'));
+    } catch (e) {
+      debugPrint(
+        "Note Hackathon - Alerte sonore ignorée sur Chrome (S'exécutera sur mobile) : $e",
+      );
+    }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Tableau de Bord Artisan',
-          style: TextStyle(fontWeight: FontWeight.bold),
+    // --- AFFICHAGE DE LA NOTIFICATION VISUELLE FLASH (SNACKBAR) ---
+    // On nettoie d'abord les anciennes SnackBar pour éviter les files d'attente
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            // Petit indicateur clignotant pour attirer l'œil en l'absence de son sur le Web
+            const Icon(
+              Icons.notification_important,
+              color: Colors.amber,
+              size: 28,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                ' NOUVELLE DEMANDE : Intervention requise de ${request.clientName} !',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
         ),
         backgroundColor: const Color(0xFF0F5234), // Vert ProxServ
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => ref.read(firebaseAuthProvider).signOut(),
-            tooltip: 'Déconnexion',
-          ),
-        ],
-      ),
-      body: profileAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text('Erreur réseau. Vérifiez votre connexion. ($err)'),
-          ),
-        ),
-        data: (profile) {
-          if (profile == null) {
-            return const Center(
-              child: Text('Aucun profil professionnel trouvé.'),
+        duration: const Duration(
+          seconds: 8,
+        ), // Plus long pour laisser le temps de voir
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        action: SnackBarAction(
+          label: 'OUVRIR',
+          textColor: Colors.amber,
+          onPressed: () {
+            _showRequestDetailsBottomSheet(
+              context,
+              ref,
+              request,
+              Colors.orange,
+              'En attente',
             );
-          }
+          },
+        ),
+      ),
+    );
 
-          return Column(
-            children: [
-              // --- SECTION 1 : BANDEAU DE DISPONIBILITÉ (UI RÉACTIVE) ---
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20.0),
-                color: profile.disponible
-                    ? Colors.green.shade50
-                    : Colors.red.shade50,
-                child: Column(
+    // Si l'artisan ne clique pas sur le bouton "OUVRIR", la modale surgit quand même après 1.5 seconde
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      // On vérifie que le contexte est toujours valide avant d'ouvrir
+      if (Navigator.canPop(context) || context.mounted) {
+        // Optionnel : décommentez la ligne ci-dessous si vous voulez forcer l'ouverture automatique
+        _showRequestDetailsBottomSheet(
+          context,
+          ref,
+          request,
+          Colors.orange,
+          'En attente',
+        );
+      }
+    });
+  }
+
+  int getResponsiveColumnCount(double width) {
+    if (width > 900) return 3;
+    if (width > 600) return 2;
+    return 1;
+  }
+
+  Widget _buildNotificationBadge(WidgetRef ref) {
+    final requestsAsync = ref.watch(professionalRequestsProvider);
+
+    return requestsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (requests) {
+        // Filtrer pour obtenir uniquement le nombre de demandes en attente
+        final pendingCount = requests
+            .where((req) => req.status == RequestStatus.enAttente)
+            .length;
+
+        // Si aucune demande n'est en attente, on n'affiche pas le badge rouge
+        if (pendingCount == 0) {
+          return const Icon(Icons.notifications_none);
+        }
+
+        // Affichage du badge avec le compteur exact
+        return Badge(
+          backgroundColor: Colors.red,
+          label: Text(
+            '$pendingCount',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+          child: const Icon(Icons.notifications),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(professionalProfileProvider);
+    final requestsAsync = ref.watch(professionalRequestsProvider);
+
+    // Système d'écoute de la notification push pour les demandes d'intervention
+    ref.listen<AsyncValue<List<ServiceRequest>>>(professionalRequestsProvider, (
+      previous,
+      next,
+    ) {
+      // On s'assure que les données sont correctement chargées
+      if (next is AsyncData<List<ServiceRequest>>) {
+        final nextRequests = next.value;
+        final previousRequests = previous?.value ?? [];
+
+        //Filtrer les demandes actuellement "En attente"
+        final newPendingRequests = nextRequests
+            .where((req) => req.status == RequestStatus.enAttente)
+            .toList();
+
+        //Détecter s'il y a une nouvelle demande par rapport à la liste précédente
+        if (newPendingRequests.length >
+            previousRequests
+                .where((req) => req.status == RequestStatus.enAttente)
+                .length) {
+          // Récupérer la demande la plus récente
+          final newestRequest = newPendingRequests.last;
+
+          //Déclencher l'alerte sonore et visuelle
+          _triggerIncomingRequestAlert(context, ref, newestRequest);
+        }
+      }
+    });
+
+    return SafeArea(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Tableau de Bord Artisan',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFF0F5234), // Vert ProxServ
+          foregroundColor: Colors.white,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: IconButton(
+                icon: _buildNotificationBadge(ref),
+                tooltip: 'Demandes en attente',
+                onPressed: () {
+                  // Optionnel pour le jury : Un clic peut faire défiler l'écran
+                  // directement vers la liste des demandes
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Consultez vos demandes en attente ci-dessous.',
+                      ),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () => ref.read(firebaseAuthProvider).signOut(),
+              tooltip: 'Déconnexion',
+            ),
+          ],
+        ),
+        body: profileAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, stack) => Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Erreur réseau. Vérifiez votre connexion. ($err)'),
+            ),
+          ),
+          data: (profile) {
+            if (profile == null) {
+              return const Center(
+                child: Text('Aucun profil professionnel trouvé.'),
+              );
+            }
+
+            // LayoutBuilder permet de s'adapter dynamiquement aux contraintes de taille
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                // Détection du mode paysage ou grand écran
+                final isLandscape =
+                    constraints.maxWidth > constraints.maxHeight;
+
+                return Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          profile.disponible
-                              ? Icons.check_circle
-                              : Icons.do_not_disturb_on,
-                          color: profile.disponible ? Colors.green : Colors.red,
-                          size: 30,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          profile.disponible
-                              ? 'Vous êtes actuellement EN LIGNE'
-                              : 'Vous êtes actuellement HORS LIGNE',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: profile.disponible
-                                ? Colors.green.shade900
-                                : Colors.red.shade900,
+                    // --- SECTION 1 : BANDEAU DE DISPONIBILITÉ RÉACTIF ET RESPONSIVE ---
+                    Container(
+                      width: double
+                          .infinity, // Préférable à MediaQuery pour remplir l'espace disponible
+                      padding: const EdgeInsets.all(16.0),
+                      color: profile.disponible
+                          ? Colors.green.shade50
+                          : Colors.red.shade50,
+                      child: isLandscape
+                          ? Row(
+                              // En paysage, on met tout sur une ligne pour gagner de l'espace vertical
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildStatusIndicator(profile.disponible),
+                                _buildAvailabilityButton(
+                                  ref,
+                                  profile.disponible,
+                                ),
+                              ],
+                            )
+                          : Column(
+                              // En portrait, on garde la structure verticale
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildStatusIndicator(profile.disponible),
+                                const SizedBox(height: 12),
+                                _buildAvailabilityButton(
+                                  ref,
+                                  profile.disponible,
+                                ),
+                              ],
+                            ),
+                    ),
+
+                    // --- SECTION 2 : TITRE DES DEMANDES D'INTERVENTION ---
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 12.0,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.assignment,
+                            color: Color(0xFF0F5234),
+                          ),
+                          const SizedBox(width: 8),
+                          // Flexible empêche le texte de déborder si la police est très grande
+                          const Expanded(
+                            child: Text(
+                              'Demandes d\'intervention reçues',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // --- SECTION 3 : LISTE DES DEMANDES EN TEMPS REEL ---
+                    Expanded(
+                      child: requestsAsync.when(
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (err, stack) => const Center(
+                          child: Text(
+                            'Erreur lors du chargement des demandes.',
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    // Bouton Switch principal (Fonctionnalité clé demandée à Maniga)
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: profile.disponible
-                            ? Colors.red
-                            : Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                      ),
-                      icon: Icon(
-                        profile.disponible
-                            ? Icons.power_settings_new
-                            : Icons.play_arrow,
-                      ),
-                      label: Text(
-                        profile.disponible
-                            ? 'Passer Hors Ligne'
-                            : 'Passer En Ligne',
-                      ),
-                      onPressed: () async {
-                        await ref
-                            .read(professionalProfileProvider.notifier)
-                            .toggleAvailability();
-                      },
-                    ),
-                  ],
-                ),
-              ),
+                        data: (requests) {
+                          if (requests.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                'Aucune demande reçue pour le moment.',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            );
+                          }
 
-              // --- SECTION 2 : TITRE DES DEMANDES D'INTERVENTION ---
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.assignment, color: Color(0xFF0F5234)),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Demandes d\'intervention reçues',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                          // GridView en paysage (2 colonnes) et ListView en portrait (1 colonne)
+                          return GridView.builder(
+                            padding: const EdgeInsets.only(
+                              bottom: 16,
+                              left: 8,
+                              right: 8,
+                            ),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: isLandscape
+                                  ? 2
+                                  : getResponsiveColumnCount(
+                                      constraints.maxWidth,
+                                    ),
+
+                              childAspectRatio: isLandscape
+                                  ? (constraints.maxWidth > 800
+                                        ? 2.5
+                                        : 1.7) // 👈 MODIFICATION : Donne plus de hauteur à la carte si la largeur Web diminue
+                                  : 2.3,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                            ),
+                            itemCount: requests.length,
+                            itemBuilder: (context, index) {
+                              return _buildRequestCard(
+                                context,
+                                ref,
+                                requests[index],
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
                   ],
-                ),
-              ),
-
-              // --- SECTION 3 : LISTE DES DEMANDES EN TEMPS RÉEL ---
-              Expanded(
-                child: requestsAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (err, stack) => const Center(
-                    child: Text('Erreur lors du chargement des demandes.'),
-                  ),
-                  data: (requests) {
-                    if (requests.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'Aucune demande reçue pour le moment.',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      itemCount: requests.length,
-                      itemBuilder: (context, index) {
-                        final request = requests[index];
-                        return _buildRequestCard(context, ref, request);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
 
-  // --- COMPOSANT : CARTE D'UNE DEMANDE D'INTERVENTION ---
+  // --- SOUS-COMPOSANTS EXTRAITS POUR CLARIFIER LE CODE ---
+
+  Widget _buildStatusIndicator(bool isDisponible) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isDisponible ? Icons.check_circle : Icons.do_not_disturb_on,
+          color: isDisponible ? Colors.green : Colors.red,
+          size: 28,
+        ),
+        const SizedBox(width: 10),
+
+        Flexible(
+          child: Text(
+            isDisponible ? 'En ligne' : 'Hors ligne',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDisponible ? Colors.green.shade900 : Colors.red.shade900,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAvailabilityButton(WidgetRef ref, bool isDisponible) {
+    return ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isDisponible ? Colors.red : Colors.green,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      ),
+      icon: Icon(isDisponible ? Icons.power_settings_new : Icons.play_arrow),
+      label: Text(isDisponible ? 'Passer Hors Ligne' : 'Passer En Ligne'),
+      onPressed: () async {
+        await ref
+            .read(professionalProfileProvider.notifier)
+            .toggleAvailability();
+      },
+    );
+  }
+
   Widget _buildRequestCard(
     BuildContext context,
     WidgetRef ref,
     ServiceRequest request,
   ) {
-    // Attribution dynamique d'une couleur selon le statut
     Color statusColor;
     String statusText;
 
@@ -200,103 +427,325 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  request.clientName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: statusColor,
-                      width: 1,
-                      style: BorderStyle.solid,
-                    ),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              request.description,
-              style: const TextStyle(color: Colors.black87),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-
-            // --- ACTIONS (Accepter / Refuser / Terminer) ---
-            if (request.status == RequestStatus.enAttente)
+      clipBehavior: Clip
+          .antiAlias, // Assure que l'effet visuel du clic ne dépasse pas des bords de la carte
+      child: InkWell(
+        onTap: () => _showRequestDetailsBottomSheet(
+          context,
+          ref,
+          request,
+          statusColor,
+          statusText,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- EN-TÊTE : NOM ET STATUT ---
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton(
-                    onPressed: () => ref
-                        .read(requestActionsProvider)
-                        .updateRequestStatus(request.id, RequestStatus.refusee),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('Refuser'),
+                  Expanded(
+                    child: Text(
+                      request.clientName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => ref
-                        .read(requestActionsProvider)
-                        .updateRequestStatus(
-                          request.id,
-                          RequestStatus.acceptee,
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F5234),
-                      foregroundColor: Colors.white,
+                      ),
                     ),
-                    child: const Text('Accepter'),
                   ),
                 ],
-              )
-            else if (request.status == RequestStatus.acceptee)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => ref
-                      .read(requestActionsProvider)
-                      .updateRequestStatus(request.id, RequestStatus.terminee),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                  icon: const Icon(Icons.check),
-                  label: const Text('Marquer comme Terminée'),
+              ),
+              const SizedBox(height: 10),
+
+              // --- DESCRIPTION COMPACTE ---
+              Expanded(
+                child: Text(
+                  request.description ?? 'Aucune description fournie',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-          ],
+              const SizedBox(height: 8),
+
+              // --- ADRESSE COMPACTE ---
+              // Row(
+              //   children: [
+              //     Icon(
+              //       Icons.location_on,
+              //       size: 14,
+              //       color: Colors.grey.shade600,
+              //     ),
+              //     const SizedBox(width: 4),
+              //     Expanded(
+              //       child: Text(
+              //         request.adresse ?? 'Adresse non spécifiée',
+              //         style: TextStyle(
+              //           fontSize: 12,
+              //           color: Colors.grey.shade600,
+              //           fontStyle: FontStyle.italic,
+              //         ),
+              //         maxLines: 1,
+              //         overflow: TextOverflow.ellipsis,
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              const SizedBox(height: 4),
+              // Petit indicateur discret invitant à cliquer
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Text(
+                  'Voir détails...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: const Color(0xFF0F5234),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  void _showRequestDetailsBottomSheet(
+    BuildContext context,
+    WidgetRef ref,
+    ServiceRequest request,
+    Color statusColor,
+    String statusText,
+  ) {
+    final isEnAttente = request.status == RequestStatus.enAttente;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          // 👈 MODIFICATION : Permet un défilement complet en cas de petits écrans ou mode paysage sur Chrome
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          "Détails de l'intervention",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F5234),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 30),
+                  const Text(
+                    'Client',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    request.clientName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Adresse d'intervention",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  // const SizedBox(height: 4),
+                  // Text(
+                  //   request.adresse ?? 'Adresse non spécifiée',
+                  //   style: const TextStyle(fontSize: 15),
+                  // ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Description de la panne / demande',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    request.description ?? 'Aucune description fournie',
+                    style: const TextStyle(fontSize: 15, height: 1.4),
+                  ),
+                  const SizedBox(height: 24),
+                  if (isEnAttente)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade50,
+                              foregroundColor: Colors.red,
+                              elevation: 0,
+                              side: BorderSide(color: Colors.red.shade200),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onPressed: () {
+                              ref
+                                  .read(requestActionsProvider)
+                                  .updateRequestStatus(
+                                    request.id,
+                                    RequestStatus.refusee,
+                                  );
+                              Navigator.pop(
+                                context,
+                              ); //  Ferme le BottomSheet après action
+                            },
+                            child: const Text(
+                              'Refuser la demande',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F5234),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onPressed: () {
+                              ref
+                                  .read(requestActionsProvider)
+                                  .updateRequestStatus(
+                                    request.id,
+                                    RequestStatus.acceptee,
+                                  );
+                              Navigator.pop(
+                                context,
+                              ); //  Ferme le BottomSheet après action
+                            },
+                            child: const Text(
+                              'Accepter',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Fermer',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

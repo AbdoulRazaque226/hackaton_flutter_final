@@ -31,6 +31,11 @@
 
   <title>proxserv</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Aucun script Firebase ici : firebase_core_web injecte lui-même le SDK
+       JavaScript modulaire dont il a besoin. Charger en plus le SDK "compat"
+       dans index.html entre en collision sur le namespace `window.firebase`
+       et casse l'authentification sur le web. -->
 </head>
 <body>
   <!--

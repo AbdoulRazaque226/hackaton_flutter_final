@@ -36,10 +36,16 @@ class _MapScreenState extends State<MapScreen> {
   // Abidjan : centre de repli si on n'a pas la position du client.
   static const _fallbackCenter = LatLng(5.3600, -4.0083);
 
+  // Rayon affiché par zone. Fixe pour le hackathon plutôt que calculé
+  // dynamiquement : une vraie estimation demanderait des données (zones
+  // administratives) qu'on n'a pas, un rayon fixe reste honnête et lisible.
+  static const _zoneRadiusMeters = 1500.0;
+
   final _mapController = MapController();
   Position? _me;
   LocationException? _problem;
   bool _loading = true;
+  bool _showZones = false;
 
   @override
   void initState() {
@@ -81,6 +87,13 @@ class _MapScreenState extends State<MapScreen> {
         title: const Text('Autour de moi'),
         actions: [
           IconButton(
+            tooltip: _showZones
+                ? 'Masquer les zones couvertes'
+                : 'Voir les zones couvertes',
+            icon: Icon(_showZones ? Icons.layers : Icons.layers_outlined),
+            onPressed: () => setState(() => _showZones = !_showZones),
+          ),
+          IconButton(
             tooltip: 'Me localiser',
             icon: const Icon(Icons.my_location),
             onPressed: _locateMe,
@@ -100,6 +113,8 @@ class _MapScreenState extends State<MapScreen> {
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.proxserv.proxserv',
                 ),
+                if (_showZones)
+                  CircleLayer(circles: _zoneCircles(visible)),
                 MarkerLayer(
                   markers: [
                     if (me != null)
@@ -134,6 +149,35 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
     );
+  }
+
+  // Un cercle par zone déclarée (zoneIntervention), centré sur la position
+  // moyenne des professionnels disponibles de cette zone. Une zone avec un
+  // seul professionnel donne quand même un cercle, centré sur lui.
+  List<CircleMarker> _zoneCircles(List<ProfessionalProfile> pros) {
+    final byZone = <String, List<ProfessionalProfile>>{};
+    for (final p in pros) {
+      if (p.zoneIntervention.trim().isEmpty) continue;
+      byZone.putIfAbsent(p.zoneIntervention, () => []).add(p);
+    }
+
+    return [
+      for (final entry in byZone.entries)
+        CircleMarker(
+          point: _centroid(entry.value),
+          radius: _zoneRadiusMeters,
+          useRadiusInMeter: true,
+          color: Colors.green.withValues(alpha: 0.12),
+          borderColor: Colors.green.withValues(alpha: 0.5),
+          borderStrokeWidth: 1.5,
+        ),
+    ];
+  }
+
+  LatLng _centroid(List<ProfessionalProfile> pros) {
+    final lat = pros.map((p) => p.latitude).reduce((a, b) => a + b) / pros.length;
+    final lon = pros.map((p) => p.longitude).reduce((a, b) => a + b) / pros.length;
+    return LatLng(lat, lon);
   }
 
   void _showPro(ProfessionalProfile pro) {
