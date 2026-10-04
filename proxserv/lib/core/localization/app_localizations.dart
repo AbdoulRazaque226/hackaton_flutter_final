@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/providers/settings_providers.dart';
+import '../../data/models/app_user.dart';
+import '../../data/models/enums.dart';
 
 enum AppLanguage { fr, en }
 
@@ -22,6 +24,35 @@ class AppLocalizations {
   final AppLanguage language;
 
   AppLocalizations(this.language);
+
+  static AppLocalizations fromContext(BuildContext context) {
+    final language = Localizations.localeOf(context).languageCode == 'en'
+        ? AppLanguage.en
+        : AppLanguage.fr;
+    return AppLocalizations(language);
+  }
+
+  String text(String french, String english) => isFr ? french : english;
+
+  String metierLabel(Metier metier) {
+    if (isFr) return metier.label;
+    return switch (metier) {
+      Metier.plombier => 'Plumber',
+      Metier.electricien => 'Electrician',
+      Metier.macon => 'Mason',
+      Metier.menuisier => 'Carpenter',
+      Metier.peintre => 'Painter',
+      Metier.reparateur => 'Repair technician',
+      Metier.nettoyage => 'Cleaning',
+      Metier.autre => 'Other',
+    };
+  }
+
+  String roleLabel(UserRole role) => switch (role) {
+    UserRole.client => text('Client', 'Client'),
+    UserRole.professionnel => text('Professionnel', 'Professional'),
+    UserRole.admin => text('Administrateur', 'Administrator'),
+  };
 
   static AppLocalizations of(BuildContext context, WidgetRef ref) {
     final lang = ref.watch(appLanguageNotifierProvider);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proxserv/application/providers/app_providers.dart';
@@ -69,6 +70,13 @@ Widget _dashboard({
       ),
     ],
     child: const MaterialApp(
+      locale: Locale('fr'),
+      supportedLocales: [Locale('fr')],
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: DashboardShell(
         home: Scaffold(body: Center(child: Text('ACCUEIL'))),
       ),
@@ -77,6 +85,38 @@ Widget _dashboard({
 }
 
 void main() {
+  testWidgets('le shell respecte les breakpoints de navigation', (
+    tester,
+  ) async {
+    for (final (width, expectsBottomBar, expectsExtendedRail) in [
+      (599.0, true, false),
+      (600.0, false, false),
+      (839.0, false, false),
+      (840.0, false, true),
+    ]) {
+      tester.view
+        ..physicalSize = Size(width, 900)
+        ..devicePixelRatio = 1;
+
+      await tester.pumpWidget(_dashboard());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(NavigationBar),
+        expectsBottomBar ? findsOneWidget : findsNothing,
+        reason: 'width: $width',
+      );
+      final rail = find.byType(NavigationRail);
+      expect(rail, expectsBottomBar ? findsNothing : findsOneWidget);
+      if (expectsExtendedRail) {
+        expect(tester.widget<NavigationRail>(rail).extended, isTrue);
+      }
+    }
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
   testWidgets('la coquille expose les cinq onglets', (tester) async {
     await tester.pumpWidget(_dashboard());
     await tester.pumpAndSettle();
@@ -96,16 +136,23 @@ void main() {
     await tester.pumpWidget(_dashboard());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Messages'));
+    await tester.tap(find.byIcon(Icons.search_outlined));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Connectez-vous pour explorer les professionnels.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
     await tester.pumpAndSettle();
     expect(find.text('Aucune conversation'), findsOneWidget);
 
-    await tester.tap(find.text('Demandes'));
+    await tester.tap(find.byIcon(Icons.assignment_outlined));
     await tester.pumpAndSettle();
     expect(find.text('À compléter'), findsOneWidget);
     expect(find.text('Complétées'), findsOneWidget);
 
-    await tester.tap(find.text('Profil'));
+    await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pumpAndSettle();
     expect(find.textContaining('Profil complété à'), findsOneWidget);
   });

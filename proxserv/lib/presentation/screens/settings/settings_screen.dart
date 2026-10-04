@@ -32,17 +32,17 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
-          const _SectionTitle('Compte'),
+          _SectionTitle(loc.text('Compte', 'Account')),
           ListTile(
             leading: const Icon(Icons.alternate_email),
-            title: const Text('Adresse e-mail'),
+            title: Text(loc.emailLabel),
             subtitle: Text(user.email),
             enabled: false,
           ),
           ListTile(
             leading: const Icon(Icons.badge_outlined),
-            title: const Text('Rôle'),
-            subtitle: Text(_roleLabel(user.role)),
+            title: Text(loc.text('Rôle', 'Role')),
+            subtitle: Text(loc.roleLabel(user.role)),
             enabled: false,
           ),
 
@@ -101,7 +101,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           if (isPro) ...[
-            const _SectionTitle('Disponibilité'),
+            _SectionTitle(loc.text('Disponibilité', 'Availability')),
             SwitchListTile(
               secondary: Icon(
                 (profile?.disponible ?? false)
@@ -113,13 +113,19 @@ class SettingsScreen extends ConsumerWidget {
               ),
               title: Text(
                 (profile?.disponible ?? false)
-                    ? 'Vous êtes en ligne'
-                    : 'Vous êtes hors ligne',
+                    ? loc.text('Vous êtes en ligne', 'You are online')
+                    : loc.text('Vous êtes hors ligne', 'You are offline'),
               ),
               subtitle: Text(
                 (profile?.disponible ?? false)
-                    ? 'Les clients voient votre fiche comme disponible.'
-                    : 'Votre fiche n\'est pas proposée aux clients.',
+                    ? loc.text(
+                        'Les clients voient votre fiche comme disponible.',
+                        'Clients see your profile as available.',
+                      )
+                    : loc.text(
+                        'Votre fiche n\'est pas proposée aux clients.',
+                        'Your profile is not shown to clients.',
+                      ),
               ),
               value: profile?.disponible ?? false,
               onChanged: profile == null
@@ -130,19 +136,29 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ],
 
-          const _SectionTitle('Notifications'),
+          _SectionTitle(loc.text('Notifications', 'Notifications')),
           SwitchListTile(
             secondary: const Icon(Icons.work_outline),
-            title: const Text('Demandes'),
-            subtitle: const Text('Suivi des demandes d\'intervention'),
+            title: Text(loc.requestsTab),
+            subtitle: Text(
+              loc.text(
+                'Suivi des demandes d\'intervention',
+                'Service request updates',
+              ),
+            ),
             value: preference(prefs, 'notifDemandes'),
             onChanged: (value) =>
                 setPreference(ref, user.uid, 'notifDemandes', value),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.chat_bubble_outline),
-            title: const Text('Messages'),
-            subtitle: const Text('Nouveaux messages dans une conversation'),
+            title: Text(loc.messagesTab),
+            subtitle: Text(
+              loc.text(
+                'Nouveaux messages dans une conversation',
+                'New messages in a conversation',
+              ),
+            ),
             value: preference(prefs, 'notifMessages'),
             onChanged: (value) =>
                 setPreference(ref, user.uid, 'notifMessages', value),
@@ -188,9 +204,3 @@ class _SectionTitle extends StatelessWidget {
     );
   }
 }
-
-String _roleLabel(UserRole role) => switch (role) {
-  UserRole.client => 'Client',
-  UserRole.professionnel => 'Professionnel',
-  UserRole.admin => 'Administrateur',
-};

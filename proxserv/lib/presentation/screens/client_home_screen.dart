@@ -4,7 +4,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/utils/distance.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/professional_profile.dart';
@@ -106,14 +105,17 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     }
   }
 
-  List<ProWithDistance> _prepare(List<ProfessionalProfile> pros) {
+  List<ProWithDistance> _prepare(
+    List<ProfessionalProfile> pros,
+    AppLocalizations loc,
+  ) {
     // Filtrage textuel si une recherche est saisie
     var filtered = pros;
     if (_searchQuery.trim().isNotEmpty) {
       final q = _searchQuery.trim().toLowerCase();
       filtered = pros.where((p) {
         final name = p.displayName.toLowerCase();
-        final metier = p.metier.label.toLowerCase();
+        final metier = loc.metierLabel(p.metier).toLowerCase();
         final zone = p.zoneIntervention.toLowerCase();
         return name.contains(q) || metier.contains(q) || zone.contains(q);
       }).toList();
@@ -146,8 +148,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             Image.asset(
               'assets/images/logo.png',
               height: 32,
-              errorBuilder: (_, _, _) =>
-                  const Icon(Icons.build_circle, color: AppColors.brandPrimary),
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
             const SizedBox(width: 8),
             const Text(
@@ -233,9 +234,15 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   if (snapshot.hasError) {
                     return EmptyState(
                       icon: Icons.cloud_off,
-                      title: 'Chargement impossible',
-                      detail: 'Vérifiez votre connexion internet.',
-                      actionLabel: 'Réessayer',
+                      title: loc.text(
+                        'Chargement impossible',
+                        'Unable to load professionals',
+                      ),
+                      detail: loc.text(
+                        'Vérifiez votre connexion internet.',
+                        'Check your internet connection.',
+                      ),
+                      actionLabel: loc.text('Réessayer', 'Retry'),
                       onAction: () => setState(() => _retry++),
                     );
                   }
@@ -244,7 +251,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   }
 
                   final pros = snapshot.data!;
-                  final available = _prepare(pros);
+                  final available = _prepare(pros, loc);
 
                   if (!identical(_lastPros, pros)) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -257,8 +264,14 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                       icon: metierIcon(_metier),
                       title: loc.noProsAvailable,
                       detail: pros.isEmpty
-                          ? 'Aucun ${_metier.label.toLowerCase()} n\'est encore inscrit sur ProxServ.'
-                          : 'Tous les ${_metier.label.toLowerCase()}s sont indisponibles actuellement.',
+                          ? loc.text(
+                              'Aucun ${loc.metierLabel(_metier).toLowerCase()} n\'est encore inscrit sur ProxServ.',
+                              'No ${loc.metierLabel(_metier).toLowerCase()} has registered on ProxServ yet.',
+                            )
+                          : loc.text(
+                              'Tous les ${loc.metierLabel(_metier).toLowerCase()}s sont indisponibles actuellement.',
+                              'All ${loc.metierLabel(_metier).toLowerCase()}s are currently unavailable.',
+                            ),
                     );
                   }
 
@@ -300,6 +313,7 @@ class _MetierSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.fromContext(context);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -307,7 +321,7 @@ class _MetierSelector extends StatelessWidget {
         children: [
           for (final metier in Metier.values) ...[
             ChoiceChip(
-              label: Text(metier.label),
+              label: Text(loc.metierLabel(metier)),
               avatar: Icon(metierIcon(metier), size: 18),
               selected: metier == selected,
               onSelected: (_) => onChanged(metier),
@@ -334,6 +348,7 @@ class _ResultHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.fromContext(context);
 
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 2),
@@ -341,9 +356,9 @@ class _ResultHeader extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              '$count ${count > 1 ? 'professionnels' : 'professionnel'} '
-              '${metier.label.toLowerCase()}${count > 1 ? 's' : ''} '
-              '${count > 1 ? 'disponibles' : 'disponible'}',
+              loc.isFr
+                  ? '$count ${count > 1 ? 'professionnels' : 'professionnel'} ${loc.metierLabel(metier).toLowerCase()}${count > 1 ? 's' : ''} ${count > 1 ? 'disponibles' : 'disponible'}'
+                  : '$count ${loc.metierLabel(metier).toLowerCase()}${count > 1 ? 's' : ''} ${count > 1 ? 'professionals' : 'professional'} ${count > 1 ? 'available' : 'available'}',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -351,7 +366,10 @@ class _ResultHeader extends StatelessWidget {
           ),
           if (hidden > 0)
             Text(
-              '$hidden indisponible${hidden > 1 ? 's' : ''}',
+              loc.text(
+                '$hidden indisponible${hidden > 1 ? 's' : ''}',
+                '$hidden unavailable',
+              ),
               style: theme.textTheme.bodySmall,
             ),
         ],
@@ -369,6 +387,7 @@ class _LocationNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.fromContext(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -392,7 +411,7 @@ class _LocationNotice extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-              child: const Text('Réessayer'),
+              child: Text(loc.text('Réessayer', 'Retry')),
             ),
         ],
       ),

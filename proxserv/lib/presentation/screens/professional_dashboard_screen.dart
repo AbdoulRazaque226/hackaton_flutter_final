@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 import '../../application/providers/app_providers.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/service_request.dart';
+import '../widgets/request_status_style.dart';
 
 class ProfessionalDashboardScreen extends ConsumerWidget {
   const ProfessionalDashboardScreen({super.key});
@@ -367,39 +369,10 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     WidgetRef ref,
     ServiceRequest request,
   ) {
-    Color statusColor;
-    String statusText;
-
-    switch (request.status) {
-      case RequestStatus.enAttente:
-        statusColor = AppColors.warning;
-        statusText = 'En attente';
-        break;
-      case RequestStatus.acceptee:
-        statusColor = AppColors.info;
-        statusText = 'Acceptée';
-        break;
-      case RequestStatus.enCours:
-        statusColor = AppColors.info;
-        statusText = 'En cours';
-        break;
-      case RequestStatus.refusee:
-        statusColor = AppColors.error;
-        statusText = 'Refusée';
-        break;
-      case RequestStatus.terminee:
-        statusColor = AppColors.success;
-        statusText = 'Terminée';
-        break;
-      case RequestStatus.annulee:
-        statusColor = const Color(0xFF64748B);
-        statusText = 'Annulée';
-        break;
-      case RequestStatus.sansReponse:
-        statusColor = const Color(0xFF94A3B8);
-        statusText = 'Sans réponse';
-        break;
-    }
+    final statusColor = RequestStatusStyle.foreground(request.status);
+    final statusText = AppLocalizations.fromContext(
+      context,
+    ).statusLabel(request.status.name);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -441,16 +414,33 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
+                        color: RequestStatusStyle.background(
+                          request.status,
+                          Theme.of(context).brightness,
+                        ),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        statusText,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            RequestStatusStyle.icon(request.status),
+                            size: 14,
+                            color: statusColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              statusText,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -652,6 +642,33 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                           ),
                         ),
                       ],
+                    )
+                  else if (request.status == RequestStatus.acceptee ||
+                      request.status == RequestStatus.enCours)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          final nextStatus =
+                              request.status == RequestStatus.acceptee
+                              ? RequestStatus.enCours
+                              : RequestStatus.terminee;
+                          ref
+                              .read(requestActionsProvider)
+                              .updateRequestStatus(request.id, nextStatus);
+                          Navigator.pop(context);
+                        },
+                        icon: Icon(
+                          request.status == RequestStatus.acceptee
+                              ? Icons.play_arrow
+                              : Icons.task_alt,
+                        ),
+                        label: Text(
+                          request.status == RequestStatus.acceptee
+                              ? 'Démarrer l’intervention'
+                              : 'Marquer comme terminée',
+                        ),
+                      ),
                     )
                   else
                     SizedBox(

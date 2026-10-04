@@ -8,20 +8,29 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/app_user.dart';
 import '../chat/chat_list_screen.dart';
 import '../history/history_screen.dart';
+import '../explore_screen.dart';
 import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
 
+/// Shell principal de navigation réactive (Mobile, Tablette, Desktop).
 class DashboardShell extends ConsumerStatefulWidget {
   final Widget home;
+  final int initialIndex;
 
-  const DashboardShell({super.key, required this.home});
+  const DashboardShell({super.key, required this.home, this.initialIndex = 0});
 
   @override
   ConsumerState<DashboardShell> createState() => _DashboardShellState();
 }
 
 class _DashboardShellState extends ConsumerState<DashboardShell> {
-  int _index = 0;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +44,7 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
     final isPro = user.role == UserRole.professionnel;
     final width = MediaQuery.of(context).size.width;
 
-    // Définition des pages et destinations selon le rôle
+    // Pages et destinations selon le rôle (Client vs Pro)
     final List<Widget> pages = isPro
         ? [
             widget.home,
@@ -46,7 +55,7 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
           ]
         : [
             widget.home,
-            widget.home, // Explorer tab defaults to home view
+            const ExploreScreen(),
             const HistoryScreen(),
             const ChatListScreen(),
             const ProfileScreen(),
@@ -132,6 +141,10 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
       );
     }).toList();
 
+    // RÈGLE DE RESPONSIVE RÉEL :
+    // < 600dp : BottomNavigationBar
+    // 600 - 839dp : NavigationRail (tablette)
+    // >= 840dp : NavigationRail étendu / sidebar desktop
     final isMobile = width < 600;
     final isDesktop = width >= 840;
 
@@ -149,7 +162,7 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
       );
     }
 
-    // Tablet & Desktop : NavigationRail/Sidebar (Pas de BottomNavigationBar sur grand écran)
+    // Tablette & Desktop : PAS de BottomNavigationBar, NavigationRail / Sidebar
     return Scaffold(
       body: Row(
         children: [
@@ -165,13 +178,8 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
                   Image.asset(
                     'assets/images/logo.png',
                     height: 36,
-                    errorBuilder: (_, _, _) => const Icon(
-                      Icons.build_circle,
-                      color: AppColors.brandPrimary,
-                      size: 36,
-                    ),
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   ),
-
                   if (isDesktop) ...[
                     const SizedBox(width: 8),
                     const Text(

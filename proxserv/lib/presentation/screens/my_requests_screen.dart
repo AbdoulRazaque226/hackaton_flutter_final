@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/models/enums.dart';
 import '../../data/models/service_request.dart';
 import '../../data/services/firebase_service.dart';
+import 'history/request_tile.dart';
 
 /// Écran permettant au client de suivre ses demandes d'intervention.
 class MyRequestsScreen extends StatelessWidget {
@@ -106,7 +106,7 @@ class _RequestItemCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Card(
-      elevation: 2,
+      elevation: 1,
       margin: const EdgeInsets.only(bottom: 16.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -137,7 +137,7 @@ class _RequestItemCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _buildStatusChip(context, request.status),
+                RequestStatusChip(status: request.status),
               ],
             ),
             const SizedBox(height: 12),
@@ -189,74 +189,6 @@ class _RequestItemCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(BuildContext context, RequestStatus status) {
-    Color backgroundColor;
-    Color textColor;
-    IconData icon;
-
-    switch (status) {
-      case RequestStatus.enAttente:
-        backgroundColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade800;
-        icon = Icons.hourglass_empty;
-        break;
-      case RequestStatus.acceptee:
-        backgroundColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade800;
-        icon = Icons.check_circle_outline;
-        break;
-      case RequestStatus.enCours:
-        backgroundColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade800;
-        icon = Icons.sync;
-        break;
-      case RequestStatus.refusee:
-        backgroundColor = Colors.red.shade50;
-        textColor = Colors.red.shade800;
-        icon = Icons.cancel_outlined;
-        break;
-      case RequestStatus.terminee:
-        backgroundColor = Colors.green.shade50;
-        textColor = Colors.green.shade800;
-        icon = Icons.task_alt;
-        break;
-      case RequestStatus.annulee:
-        backgroundColor = const Color(0xFFF1F5F9);
-        textColor = const Color(0xFF64748B);
-        icon = Icons.do_not_disturb;
-        break;
-      case RequestStatus.sansReponse:
-        backgroundColor = const Color(0xFFF1F5F9);
-        textColor = const Color(0xFF94A3B8);
-        icon = Icons.help_outline;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: textColor.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            status.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-          ),
-        ],
       ),
     );
   }

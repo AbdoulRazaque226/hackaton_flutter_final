@@ -2,12 +2,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/localization/app_localizations.dart';
 import '../../data/models/app_user.dart';
 import '../../data/models/enums.dart';
 import '../../data/services/firebase_service.dart';
-import 'client_home_screen.dart';
-import 'login_screen.dart';
+import 'login_screen.dart' show authErrorMessage;
 
 // Écran d'inscription : compte client ou professionnel.
 // Pour un professionnel, le métier et la zone d'intervention sont aussi
@@ -85,10 +86,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final onRegistered = widget.onRegistered;
       if (onRegistered != null) {
         onRegistered(user);
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const ClientHomeScreen()),
-        );
       }
     } on FirebaseAuthException catch (e, st) {
       // Le code exact apparaît dans la console : c'est lui qui explique le 400.
@@ -114,28 +111,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Messages précis pour les erreurs d'inscription ; sinon on retombe sur
   // le message générique partagé (authErrorMessage).
   String _signUpErrorMessage(FirebaseAuthException e) {
+    final loc = AppLocalizations.fromContext(context);
     final raw = '${e.code} ${e.message ?? ''}'.toUpperCase();
     // En développement, on ajoute le code brut pour diagnostiquer vite.
     final suffix = kDebugMode ? ' [${e.code}]' : '';
 
     if (raw.contains('RECAPTCHA')) {
-      return 'Vérification de sécurité échouée (reCAPTCHA). '
-          'Réessayez ou contactez le support.$suffix';
+      return '${loc.text('Vérification de sécurité échouée (reCAPTCHA). Réessayez ou contactez le support.', 'Security verification failed (reCAPTCHA). Try again or contact support.')}$suffix';
     }
     if (raw.contains('OPERATION_NOT_ALLOWED') ||
         raw.contains('OPERATION-NOT-ALLOWED')) {
-      return 'L\'inscription par e-mail n\'est pas activée sur le serveur.'
-          '$suffix';
+      return '${loc.text('L\'inscription par e-mail n\'est pas activée sur le serveur.', 'Email registration is not enabled on the server.')}$suffix';
     }
     if (raw.contains('CONFIGURATION_NOT_FOUND') ||
         raw.contains('API_KEY') ||
         raw.contains('API KEY')) {
-      return 'Configuration Firebase invalide. Contactez le support.$suffix';
+      return '${loc.text('Configuration Firebase invalide. Contactez le support.', 'Invalid Firebase configuration. Contact support.')}$suffix';
     }
     if (raw.contains('NETWORK')) {
-      return 'Problème de connexion. Vérifiez votre réseau.$suffix';
+      return '${loc.text('Problème de connexion. Vérifiez votre réseau.', 'Connection problem. Check your network.')}$suffix';
     }
-    return '${authErrorMessage(e)}$suffix';
+    return '${authErrorMessage(e, loc)}$suffix';
   }
 
   void _selectRole(UserRole role) {
@@ -149,9 +145,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.fromContext(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Créer un compte')),
+      appBar: AppBar(title: Text(loc.registerTitle)),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -163,15 +160,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          height: 64,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
                     Text(
-                      'Rejoignez ProxServ',
+                      loc.text('Rejoignez ProxServ', 'Join ProxServ'),
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Remplissez le formulaire pour créer votre compte.',
+                      loc.text(
+                        'Remplissez le formulaire pour créer votre compte.',
+                        'Complete the form to create your account.',
+                      ),
                       style: theme.textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 24),
@@ -179,19 +190,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       _RegisterErrorBanner(message: _error!),
                       const SizedBox(height: 16),
                     ],
-                    Text('Je suis', style: theme.textTheme.labelLarge),
+                    Text(
+                      loc.text('Je suis', 'I am a'),
+                      style: theme.textTheme.labelLarge,
+                    ),
                     const SizedBox(height: 8),
                     SegmentedButton<UserRole>(
-                      segments: const [
+                      segments: [
                         ButtonSegment(
                           value: UserRole.client,
                           icon: Icon(Icons.person_outline),
-                          label: Text('Un client'),
+                          label: Text(loc.iAmClient),
                         ),
                         ButtonSegment(
                           value: UserRole.professionnel,
                           icon: Icon(Icons.handyman_outlined),
-                          label: Text('Un professionnel'),
+                          label: Text(loc.iAmPro),
                         ),
                       ],
                       selected: {_role},
@@ -203,12 +217,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _nameController,
                       textCapitalization: TextCapitalization.words,
                       textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Nom complet',
+                      decoration: InputDecoration(
+                        labelText: loc.fullNameLabel,
                         prefixIcon: Icon(Icons.badge_outlined),
                       ),
                       validator: (value) => (value?.trim().isEmpty ?? true)
-                          ? 'Saisissez votre nom complet.'
+                          ? loc.text(
+                              'Saisissez votre nom complet.',
+                              'Enter your full name.',
+                            )
                           : null,
                     ),
                     const SizedBox(height: 16),
@@ -221,8 +238,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           RegExp(r'[0-9+\s().-]'),
                         ),
                       ],
-                      decoration: const InputDecoration(
-                        labelText: 'Numéro de téléphone',
+                      decoration: InputDecoration(
+                        labelText: loc.phoneLabel,
                         prefixIcon: Icon(Icons.phone_outlined),
                       ),
                       validator: _validatePhone,
@@ -233,8 +250,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: 'Adresse e-mail',
+                      decoration: InputDecoration(
+                        labelText: loc.emailLabel,
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
                       validator: _validateEmail,
@@ -245,7 +262,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
-                        labelText: 'Mot de passe',
+                        labelText: loc.passwordLabel,
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -254,8 +271,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 : Icons.visibility_off_outlined,
                           ),
                           tooltip: _obscurePassword
-                              ? 'Afficher le mot de passe'
-                              : 'Masquer le mot de passe',
+                              ? loc.text(
+                                  'Afficher le mot de passe',
+                                  'Show password',
+                                )
+                              : loc.text(
+                                  'Masquer le mot de passe',
+                                  'Hide password',
+                                ),
                           onPressed: () => setState(
                             () => _obscurePassword = !_obscurePassword,
                           ),
@@ -274,16 +297,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       onFieldSubmitted: (_) {
                         if (!_isPro && !_loading) _submit();
                       },
-                      decoration: const InputDecoration(
-                        labelText: 'Confirmer le mot de passe',
+                      decoration: InputDecoration(
+                        labelText: loc.confirmPasswordLabel,
                         prefixIcon: Icon(Icons.lock_reset_outlined),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Confirmez votre mot de passe.';
+                          return loc.text(
+                            'Confirmez votre mot de passe.',
+                            'Confirm your password.',
+                          );
                         }
                         if (value != _passwordController.text) {
-                          return 'Les deux mots de passe ne correspondent pas.';
+                          return loc.text(
+                            'Les deux mots de passe ne correspondent pas.',
+                            'The passwords do not match.',
+                          );
                         }
                         return null;
                       },
@@ -295,8 +324,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         // (initialValue n'existe que sur les plus récentes).
                         initialValue: _metier,
                         isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Métier',
+                        decoration: InputDecoration(
+                          labelText: loc.text('Métier', 'Trade'),
                           prefixIcon: Icon(Icons.handyman_outlined),
                         ),
                         items: [
@@ -307,7 +336,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 children: [
                                   Icon(metierIcon(metier), size: 20),
                                   const SizedBox(width: 12),
-                                  Text(metier.label),
+                                  Text(loc.metierLabel(metier)),
                                 ],
                               ),
                             ),
@@ -316,7 +345,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         validator: (value) {
                           if (!_isPro) return null;
                           return value == null
-                              ? 'Choisissez votre métier.'
+                              ? loc.text(
+                                  'Choisissez votre métier.',
+                                  'Choose your trade.',
+                                )
                               : null;
                         },
                       ),
@@ -328,15 +360,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onFieldSubmitted: (_) {
                           if (!_loading) _submit();
                         },
-                        decoration: const InputDecoration(
-                          labelText: 'Zone d\'intervention',
-                          hintText: 'Ex. Cocody, Abidjan',
+                        decoration: InputDecoration(
+                          labelText: loc.text(
+                            'Zone d\'intervention',
+                            'Service area',
+                          ),
+                          hintText: loc.text(
+                            'Ex. Cocody, Abidjan',
+                            'e.g. Cocody, Abidjan',
+                          ),
                           prefixIcon: Icon(Icons.map_outlined),
                         ),
                         validator: (value) {
                           if (!_isPro) return null;
                           return (value?.trim().isEmpty ?? true)
-                              ? 'Indiquez votre zone d\'intervention.'
+                              ? loc.text(
+                                  'Indiquez votre zone d\'intervention.',
+                                  'Enter your service area.',
+                                )
                               : null;
                         },
                       ),
@@ -355,14 +396,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 strokeWidth: 2.5,
                               ),
                             )
-                          : const Text('Créer mon compte'),
+                          : Text(loc.registerTitle),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: _loading
-                          ? null
-                          : () => Navigator.of(context).maybePop(),
-                      child: const Text("J'ai déjà un compte"),
+                      onPressed: _loading ? null : () => context.go('/login'),
+                      child: Text(loc.hasAccount),
                     ),
                   ],
                 ),
@@ -375,28 +414,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   String? _validateEmail(String? value) {
+    final loc = AppLocalizations.fromContext(context);
     final email = value?.trim() ?? '';
-    if (email.isEmpty) return 'Saisissez votre adresse e-mail.';
+    if (email.isEmpty) {
+      return loc.text(
+        'Saisissez votre adresse e-mail.',
+        'Enter your email address.',
+      );
+    }
     if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email)) {
-      return 'Cette adresse e-mail n\'est pas valide.';
+      return loc.text(
+        'Cette adresse e-mail n\'est pas valide.',
+        'This email address is invalid.',
+      );
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
+    final loc = AppLocalizations.fromContext(context);
     final password = value ?? '';
-    if (password.isEmpty) return 'Saisissez un mot de passe.';
+    if (password.isEmpty) {
+      return loc.text('Saisissez un mot de passe.', 'Enter a password.');
+    }
     if (password.length < 6) {
-      return 'Le mot de passe doit contenir au moins 6 caractères.';
+      return loc.text(
+        'Le mot de passe doit contenir au moins 6 caractères.',
+        'Password must be at least 6 characters.',
+      );
     }
     return null;
   }
 
   String? _validatePhone(String? value) {
+    final loc = AppLocalizations.fromContext(context);
     final phone = value?.trim() ?? '';
-    if (phone.isEmpty) return 'Saisissez votre numéro de téléphone.';
+    if (phone.isEmpty) {
+      return loc.text(
+        'Saisissez votre numéro de téléphone.',
+        'Enter your phone number.',
+      );
+    }
     final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length < 8) return 'Ce numéro semble incomplet.';
+    if (digits.length < 8) {
+      return loc.text(
+        'Ce numéro semble incomplet.',
+        'This number seems incomplete.',
+      );
+    }
     return null;
   }
 }
