@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proxserv/application/providers/app_providers.dart';
@@ -19,12 +20,12 @@ import 'package:proxserv/presentation/screens/dashboard/dashboard_shell.dart';
 /// `IndexedStack` construisant tous ses enfants, une exception dans un seul
 /// onglet ferait échouer l'ensemble — c'est exactement ce qu'on veut attraper ici.
 AppUser _client() => const AppUser(
-      uid: 'client-1',
-      email: 'aya@example.com',
-      displayName: 'Aya Traoré',
-      phone: '0700000000',
-      role: UserRole.client,
-    );
+  uid: 'client-1',
+  email: 'aya@example.com',
+  displayName: 'Aya Traoré',
+  phone: '0700000000',
+  role: UserRole.client,
+);
 
 ServiceRequest _request({
   RequestStatus status = RequestStatus.enAttente,
@@ -61,11 +62,21 @@ Widget _dashboard({
       // Le type exact n'importe pas ici : la coquille ne lit ce provider que
       // pour dériver le badge de non-lus, alimenté par une liste vide.
       myChatThreadsProvider.overrideWith((ref) => Stream.value(threads.cast())),
-      proDirectoryProvider.overrideWith((ref) async => {'pro-1': 'Kouassi Yao'}),
-      userPreferencesProvider
-          .overrideWith((ref) => Stream.value(const <String, dynamic>{})),
+      proDirectoryProvider.overrideWith(
+        (ref) async => {'pro-1': 'Kouassi Yao'},
+      ),
+      userPreferencesProvider.overrideWith(
+        (ref) => Stream.value(const <String, dynamic>{}),
+      ),
     ],
     child: const MaterialApp(
+      locale: Locale('fr'),
+      supportedLocales: [Locale('fr')],
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: DashboardShell(
         home: Scaffold(body: Center(child: Text('ACCUEIL'))),
       ),
@@ -74,17 +85,47 @@ Widget _dashboard({
 }
 
 void main() {
+  testWidgets('le shell respecte les breakpoints de navigation', (
+    tester,
+  ) async {
+    for (final (width, expectsBottomBar, expectsExtendedRail) in [
+      (599.0, true, false),
+      (600.0, false, false),
+      (839.0, false, false),
+      (840.0, false, true),
+    ]) {
+      tester.view
+        ..physicalSize = Size(width, 900)
+        ..devicePixelRatio = 1;
+
+      await tester.pumpWidget(_dashboard());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(NavigationBar),
+        expectsBottomBar ? findsOneWidget : findsNothing,
+        reason: 'width: $width',
+      );
+      final rail = find.byType(NavigationRail);
+      expect(rail, expectsBottomBar ? findsNothing : findsOneWidget);
+      if (expectsExtendedRail) {
+        expect(tester.widget<NavigationRail>(rail).extended, isTrue);
+      }
+    }
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
   testWidgets('la coquille expose les cinq onglets', (tester) async {
     await tester.pumpWidget(_dashboard());
     await tester.pumpAndSettle();
 
-    // Les libellés de la barre de navigation sont toujours affichés.
-    // On ne contrôle pas les icônes : une NavigationBar ne construit que
-    // l'icône de la destination sélectionnée.
+    // Les libellés de la barre de navigation sont toujours affichés selon la Mission 2A.
     expect(find.text('Accueil'), findsOneWidget);
-    expect(find.text('Chat'), findsOneWidget);
-    expect(find.text('Historique'), findsOneWidget);
-    expect(find.text('Paramètres'), findsOneWidget);
+    expect(find.text('Explorer'), findsOneWidget);
+    expect(find.text('Demandes'), findsOneWidget);
+    expect(find.text('Messages'), findsOneWidget);
     expect(find.text('Profil'), findsOneWidget);
 
     // Le contenu « Accueil » fourni par l'appelant est bien monté.
@@ -92,49 +133,52 @@ void main() {
   });
 
   testWidgets('chaque onglet affiche son contenu', (tester) async {
-    // L'IndexedStack ne construit pas qu'un onglet à la fois : une exception
-    // dans l'un d'eux ferait échouer l'ensemble. On visite donc les cinq.
     await tester.pumpWidget(_dashboard());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Chat'));
+    await tester.tap(find.byIcon(Icons.search_outlined));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Connectez-vous pour explorer les professionnels.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
     await tester.pumpAndSettle();
     expect(find.text('Aucune conversation'), findsOneWidget);
 
-    await tester.tap(find.text('Historique'));
+    await tester.tap(find.byIcon(Icons.assignment_outlined));
     await tester.pumpAndSettle();
     expect(find.text('À compléter'), findsOneWidget);
     expect(find.text('Complétées'), findsOneWidget);
 
-    await tester.tap(find.text('Paramètres'));
-    await tester.pumpAndSettle();
-    expect(find.text('Se déconnecter'), findsOneWidget);
-
-    await tester.tap(find.text('Profil'));
+    await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pumpAndSettle();
     expect(find.textContaining('Profil complété à'), findsOneWidget);
   });
 
-  testWidgets('le passage à l\'onglet Historique affiche la demande', (tester) async {
-    await tester.pumpWidget(
-      _dashboard(requests: [_request()]),
-    );
+  testWidgets('le passage à l\'onglet Demandes affiche la demande', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_dashboard(requests: [_request()]));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.history_outlined));
+    await tester.tap(find.byIcon(Icons.assignment_outlined));
     await tester.pumpAndSettle();
 
     expect(find.text('Plombier'), findsWidgets);
     expect(find.textContaining('Fuite sous l\'évier'), findsOneWidget);
   });
 
-  testWidgets('une demande terminée bascule dans « Complétées »', (tester) async {
+  testWidgets('une demande terminée bascule dans « Complétées »', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _dashboard(requests: [_request(status: RequestStatus.terminee)]),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.history_outlined));
+    await tester.tap(find.byIcon(Icons.assignment_outlined));
     await tester.pumpAndSettle();
 
     // Onglet « À compléter » : rien à afficher.

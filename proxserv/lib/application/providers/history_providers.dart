@@ -29,10 +29,8 @@ final myRequestsProvider = StreamProvider<List<ServiceRequest>>((ref) {
       .map((snapshot) {
         final requests = snapshot.docs
             .map(
-              (doc) => ServiceRequest.fromMap(doc.id, {
-                ...doc.data(),
-                'id': doc.id,
-              }),
+              (doc) =>
+                  ServiceRequest.fromMap(doc.id, {...doc.data(), 'id': doc.id}),
             )
             .toList();
         requests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -51,14 +49,17 @@ final myRequestsProvider = StreamProvider<List<ServiceRequest>>((ref) {
 /// Professionnel se comportent exactement pareil.
 extension RequestHistoryBuckets on List<ServiceRequest> {
   List<ServiceRequest> get pending => where(
-        (r) =>
-            r.status == RequestStatus.enAttente ||
-            r.status == RequestStatus.acceptee,
-      ).toList();
+    (r) =>
+        r.status == RequestStatus.enAttente ||
+        r.status == RequestStatus.acceptee ||
+        r.status == RequestStatus.enCours,
+  ).toList();
 
   List<ServiceRequest> get closed => where(
-        (r) =>
-            r.status == RequestStatus.terminee ||
-            r.status == RequestStatus.refusee,
-      ).toList();
+    (r) =>
+        r.status == RequestStatus.terminee ||
+        r.status == RequestStatus.refusee ||
+        r.status == RequestStatus.annulee ||
+        r.status == RequestStatus.sansReponse,
+  ).toList();
 }

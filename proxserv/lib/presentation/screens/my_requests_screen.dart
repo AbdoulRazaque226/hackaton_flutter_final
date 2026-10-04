@@ -1,19 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../data/models/enums.dart';
 import '../../data/models/service_request.dart';
 import '../../data/services/firebase_service.dart';
+import 'history/request_tile.dart';
 
 /// Écran permettant au client de suivre ses demandes d'intervention.
 class MyRequestsScreen extends StatelessWidget {
   final String? clientId;
   final FirebaseService firebaseService;
 
-  MyRequestsScreen({
-    super.key,
-    this.clientId,
-    FirebaseService? firebaseService,
-  }) : firebaseService = firebaseService ?? FirebaseService();
+  MyRequestsScreen({super.key, this.clientId, FirebaseService? firebaseService})
+    : firebaseService = firebaseService ?? FirebaseService();
 
   @override
   Widget build(BuildContext context) {
@@ -21,9 +18,7 @@ class MyRequestsScreen extends StatelessWidget {
         clientId ?? firebaseService.currentUser?.uid ?? '';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mes demandes d\'intervention'),
-      ),
+      appBar: AppBar(title: const Text('Mes demandes d\'intervention')),
       body: effectiveClientId.isEmpty
           ? const Center(
               child: Text(
@@ -35,9 +30,7 @@ class MyRequestsScreen extends StatelessWidget {
               stream: firebaseService.watchRequestsForClient(effectiveClientId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
 
                 if (snapshot.hasError) {
@@ -113,11 +106,9 @@ class _RequestItemCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Card(
-      elevation: 2,
+      elevation: 1,
       margin: const EdgeInsets.only(bottom: 16.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -146,7 +137,7 @@ class _RequestItemCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _buildStatusChip(context, request.status),
+                RequestStatusChip(status: request.status),
               ],
             ),
             const SizedBox(height: 12),
@@ -198,59 +189,6 @@ class _RequestItemCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(BuildContext context, RequestStatus status) {
-    Color backgroundColor;
-    Color textColor;
-    IconData icon;
-
-    switch (status) {
-      case RequestStatus.enAttente:
-        backgroundColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade800;
-        icon = Icons.hourglass_empty;
-        break;
-      case RequestStatus.acceptee:
-        backgroundColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade800;
-        icon = Icons.check_circle_outline;
-        break;
-      case RequestStatus.refusee:
-        backgroundColor = Colors.red.shade50;
-        textColor = Colors.red.shade800;
-        icon = Icons.cancel_outlined;
-        break;
-      case RequestStatus.terminee:
-        backgroundColor = Colors.green.shade50;
-        textColor = Colors.green.shade800;
-        icon = Icons.task_alt;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: textColor.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            status.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-          ),
-        ],
       ),
     );
   }

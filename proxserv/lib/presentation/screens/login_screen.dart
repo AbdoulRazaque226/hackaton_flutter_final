@@ -1,42 +1,65 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/localization/app_localizations.dart';
 import '../../data/models/app_user.dart';
 import '../../data/services/firebase_service.dart';
-import 'client_home_screen.dart';
-import 'register_screen.dart';
 
 // Traduit une erreur Firebase en un message compréhensible par l'utilisateur.
-// Partagée par login_screen et register_screen.
-String authErrorMessage(FirebaseAuthException e) {
+String authErrorMessage(FirebaseAuthException e, [AppLocalizations? loc]) {
+  String text(String french, String english) =>
+      loc?.text(french, english) ?? french;
+
   switch (e.code) {
     case 'invalid-email':
-      return 'Cette adresse e-mail n\'est pas valide.';
+      return text(
+        'Cette adresse e-mail n\'est pas valide.',
+        'This email address is invalid.',
+      );
     case 'user-disabled':
-      return 'Ce compte a été désactivé.';
+      return text(
+        'Ce compte a été désactivé.',
+        'This account has been disabled.',
+      );
     case 'user-not-found':
     case 'wrong-password':
     case 'invalid-credential':
-      return 'E-mail ou mot de passe incorrect.';
+      return text(
+        'E-mail ou mot de passe incorrect.',
+        'Incorrect email or password.',
+      );
     case 'email-already-in-use':
-      return 'Un compte existe déjà avec cette adresse e-mail.';
+      return text(
+        'Un compte existe déjà avec cette adresse e-mail.',
+        'An account already exists for this email.',
+      );
     case 'weak-password':
-      return 'Le mot de passe doit contenir au moins 6 caractères.';
+      return text(
+        'Le mot de passe doit contenir au moins 6 caractères.',
+        'Password must be at least 6 characters.',
+      );
     case 'too-many-requests':
-      return 'Trop de tentatives. Réessayez dans quelques instants.';
+      return text(
+        'Trop de tentatives. Réessayez dans quelques instants.',
+        'Too many attempts. Try again shortly.',
+      );
     case 'network-request-failed':
-      return 'Pas de connexion internet. Vérifiez votre réseau.';
+      return text(
+        'Pas de connexion internet. Vérifiez votre réseau.',
+        'No internet connection. Check your network.',
+      );
     default:
-      return 'Une erreur est survenue. Réessayez.';
+      return text(
+        'Une erreur est survenue. Réessayez.',
+        'Something went wrong. Please try again.',
+      );
   }
 }
 
-// Écran de connexion : e-mail + mot de passe.
+/// Écran de connexion avec logo officiel ProxServ.
 class LoginScreen extends StatefulWidget {
   final FirebaseService? firebaseService;
-
-  // Appelé une fois la connexion réussie, pour que le router puisse rediriger
-  // selon le rôle (client ou professionnel). Si null, on ouvre l'accueil client.
   final void Function(AppUser user)? onSignedIn;
 
   const LoginScreen({super.key, this.firebaseService, this.onSignedIn});
@@ -91,36 +114,34 @@ class _LoginScreenState extends State<LoginScreen> {
       final onSignedIn = widget.onSignedIn;
       if (onSignedIn != null && user != null) {
         onSignedIn(user);
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const ClientHomeScreen()),
-        );
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      setState(() => _error = authErrorMessage(e));
+      setState(
+        () =>
+            _error = authErrorMessage(e, AppLocalizations.fromContext(context)),
+      );
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Connexion impossible. Réessayez.');
+      setState(
+        () => _error = AppLocalizations.fromContext(context).text(
+          'Connexion impossible. Réessayez.',
+          'Unable to sign in. Please try again.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   void _goToRegister() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => RegisterScreen(
-          firebaseService: _service,
-          onRegistered: widget.onSignedIn,
-        ),
-      ),
-    );
+    context.go('/register');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.fromContext(context);
 
     return Scaffold(
       body: SafeArea(
@@ -134,12 +155,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(
-                      Icons.home_work_outlined,
-                      size: 64,
-                      color: theme.colorScheme.primary,
+                    // LOGO OFFICIEL PROXSERV (pas d'icône générique)
+                    Center(
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        height: 80,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     Text(
                       'ProxServ',
                       textAlign: TextAlign.center,
@@ -150,9 +175,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Trouvez un professionnel près de chez vous',
+                      loc.text(
+                        'Trouvez un professionnel près de chez vous',
+                        'Find a professional near you',
+                      ),
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 32),
                     if (_error != null) ...[
@@ -164,8 +194,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: 'Adresse e-mail',
+                      decoration: InputDecoration(
+                        labelText: loc.emailLabel,
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
                       validator: _validateEmail,
@@ -177,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => _loading ? null : _submit(),
                       decoration: InputDecoration(
-                        labelText: 'Mot de passe',
+                        labelText: loc.passwordLabel,
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -186,8 +216,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Icons.visibility_off_outlined,
                           ),
                           tooltip: _obscurePassword
-                              ? 'Afficher le mot de passe'
-                              : 'Masquer le mot de passe',
+                              ? loc.text(
+                                  'Afficher le mot de passe',
+                                  'Show password',
+                                )
+                              : loc.text(
+                                  'Masquer le mot de passe',
+                                  'Hide password',
+                                ),
                           onPressed: () => setState(
                             () => _obscurePassword = !_obscurePassword,
                           ),
@@ -207,14 +243,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               height: 22,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
+                                color: Colors.white,
                               ),
                             )
-                          : const Text('Se connecter'),
+                          : Text(loc.loginTitle),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: _loading ? null : _goToRegister,
-                      child: const Text("Pas encore de compte ? S'inscrire"),
+                      child: Text(loc.noAccount),
                     ),
                   ],
                 ),
@@ -227,25 +264,39 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _validateEmail(String? value) {
+    final loc = AppLocalizations.fromContext(context);
     final email = value?.trim() ?? '';
-    if (email.isEmpty) return 'Saisissez votre adresse e-mail.';
+    if (email.isEmpty) {
+      return loc.text(
+        'Saisissez votre adresse e-mail.',
+        'Enter your email address.',
+      );
+    }
     if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email)) {
-      return 'Cette adresse e-mail n\'est pas valide.';
+      return loc.text(
+        'Cette adresse e-mail n\'est pas valide.',
+        'This email address is invalid.',
+      );
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
+    final loc = AppLocalizations.fromContext(context);
     final password = value ?? '';
-    if (password.isEmpty) return 'Saisissez votre mot de passe.';
+    if (password.isEmpty) {
+      return loc.text('Saisissez votre mot de passe.', 'Enter your password.');
+    }
     if (password.length < 6) {
-      return 'Le mot de passe doit contenir au moins 6 caractères.';
+      return loc.text(
+        'Le mot de passe doit contenir au moins 6 caractères.',
+        'Password must be at least 6 characters.',
+      );
     }
     return null;
   }
 }
 
-// Bandeau d'erreur utilisé par les écrans d'authentification.
 class _ErrorBanner extends StatelessWidget {
   final String message;
 

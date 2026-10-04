@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../application/providers/app_providers.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/professional_profile.dart';
@@ -19,9 +21,19 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider).value;
     final profile = ref.watch(professionalProfileProvider).value;
+    final loc = AppLocalizations.of(context, ref);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profil')),
+      appBar: AppBar(
+        title: Text(loc.profileTab),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: loc.settingsTab,
+            onPressed: () => context.push('/settings'),
+          ),
+        ],
+      ),
       body: user == null
           ? const Center(child: CircularProgressIndicator())
           : _ProfileForm(user: user, profile: profile),
@@ -88,24 +100,31 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
       });
 
       if (_isPro && widget.profile != null) {
-        await firestore
-            .collection('professionals')
-            .doc(widget.user.uid)
-            .update({
-              'metier': _metier.name,
-              'zoneIntervention': _zone.text.trim(),
-            });
+        await firestore.collection('professionals').doc(widget.user.uid).update(
+          {'metier': _metier.name, 'zoneIntervention': _zone.text.trim()},
+        );
       }
 
       if (!mounted) return;
+      final loc = AppLocalizations.fromContext(context);
       setState(() => _dirty = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis à jour.')),
+        SnackBar(
+          content: Text(loc.text('Profil mis à jour.', 'Profile updated.')),
+        ),
       );
     } catch (error) {
       if (!mounted) return;
+      final loc = AppLocalizations.fromContext(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Enregistrement impossible : $error')),
+        SnackBar(
+          content: Text(
+            loc.text(
+              'Enregistrement impossible : $error',
+              'Unable to save profile: $error',
+            ),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -116,6 +135,7 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
   Widget build(BuildContext context) {
     final profile = widget.profile;
     final completion = _completion(profile);
+    final loc = AppLocalizations.fromContext(context);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -129,18 +149,17 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                 child: Text(
                   _initials(_name.text),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
               Text(
-                _roleLabel(widget.user.role),
+                _roleLabel(widget.user.role, loc),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -159,7 +178,10 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                     const Icon(Icons.fact_check_outlined, size: 18),
                     const SizedBox(width: 8),
                     Text(
-                      'Profil complété à $completion %',
+                      loc.text(
+                        'Profil complété à $completion %',
+                        'Profile $completion% complete',
+                      ),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -171,12 +193,15 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
           ),
         ),
         const SizedBox(height: 20),
-        Text('Identité', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          loc.text('Identité', 'Identity'),
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         const SizedBox(height: 10),
         TextField(
           controller: _name,
-          decoration: const InputDecoration(
-            labelText: 'Nom complet',
+          decoration: InputDecoration(
+            labelText: loc.fullNameLabel,
             border: OutlineInputBorder(),
           ),
         ),
@@ -184,8 +209,8 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
         TextField(
           controller: _phone,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            labelText: 'Téléphone',
+          decoration: InputDecoration(
+            labelText: loc.phoneLabel,
             border: OutlineInputBorder(),
           ),
         ),
@@ -193,19 +218,22 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
         if (_isPro) ...[
           const SizedBox(height: 20),
           Text(
-            'Activité',
+            loc.text('Activité', 'Professional details'),
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<Metier>(
             initialValue: _metier,
-            decoration: const InputDecoration(
-              labelText: 'Métier',
+            decoration: InputDecoration(
+              labelText: loc.text('Métier', 'Trade'),
               border: OutlineInputBorder(),
             ),
             items: [
               for (final metier in Metier.values)
-                DropdownMenuItem(value: metier, child: Text(metier.label)),
+                DropdownMenuItem(
+                  value: metier,
+                  child: Text(loc.metierLabel(metier)),
+                ),
             ],
             onChanged: (value) {
               if (value == null) return;
@@ -218,9 +246,9 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
           const SizedBox(height: 12),
           TextField(
             controller: _zone,
-            decoration: const InputDecoration(
-              labelText: 'Zone d\'intervention',
-              hintText: 'Ex. Cocody, Abidjan',
+            decoration: InputDecoration(
+              labelText: loc.text('Zone d\'intervention', 'Service area'),
+              hintText: loc.text('Ex. Cocody, Abidjan', 'e.g. Cocody, Abidjan'),
               border: OutlineInputBorder(),
             ),
           ),
@@ -236,7 +264,7 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.save_outlined),
-          label: const Text('Enregistrer'),
+          label: Text(loc.text('Enregistrer', 'Save')),
         ),
       ],
     );
@@ -270,8 +298,4 @@ String _initials(String name) {
   return (first + last).toUpperCase();
 }
 
-String _roleLabel(UserRole role) => switch (role) {
-      UserRole.client => 'Client',
-      UserRole.professionnel => 'Professionnel',
-      UserRole.admin => 'Administrateur',
-    };
+String _roleLabel(UserRole role, AppLocalizations loc) => loc.roleLabel(role);
