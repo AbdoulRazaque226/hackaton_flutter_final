@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../application/providers/app_providers.dart';
 import '../../../application/providers/chat_providers.dart';
 import '../../../application/providers/directory_providers.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/chat_thread.dart';
 import '../../navigation/chat_route.dart';
@@ -24,26 +25,32 @@ class ChatListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final threadsAsync = ref.watch(myChatThreadsProvider);
     final user = ref.watch(currentUserProvider).value;
+    final loc = AppLocalizations.fromContext(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Messages'),
+        title: Text(loc.messagesTab),
         actions: [
-          if (threadsAsync.hasError)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Réessayer',
-              onPressed: () => ref.invalidate(myChatThreadsProvider),
-            ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Réessayer',
+            onPressed: () => ref.invalidate(myChatThreadsProvider),
+          ),
         ],
       ),
       body: Builder(
         builder: (context) {
           if (threadsAsync.hasError) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.cloud_off,
-              title: 'Chargement impossible',
-              detail: 'Vérifiez votre connexion internet.',
+              title: loc.text(
+                'Chargement impossible',
+                'Unable to load messages',
+              ),
+              detail: loc.text(
+                'Vérifiez votre connexion internet.',
+                'Check your internet connection.',
+              ),
             );
           }
 
@@ -53,12 +60,13 @@ class ChatListScreen extends ConsumerWidget {
           }
 
           if (threads.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.forum_outlined,
-              title: 'Aucune conversation',
-              detail:
-                  'Ouvrez une demande depuis l\'Historique pour discuter '
-                  'avec le professionnel.',
+              title: loc.text('Aucune conversation', 'No conversations'),
+              detail: loc.text(
+                'Ouvrez une demande depuis Demandes pour discuter avec le professionnel.',
+                'Open a request from Requests to chat with the professional.',
+              ),
             );
           }
 
@@ -74,8 +82,9 @@ class ChatListScreen extends ConsumerWidget {
               final thread = threads[index];
               return _ThreadTile(
                 thread: thread,
-                counterpart: _counterpartName(thread, role, proNames),
+                counterpart: _counterpartName(thread, role, proNames, loc),
                 unread: thread.isUnreadFor(uid, role),
+                loc: loc,
                 onTap: () => context.push(chatRoutePath(thread.requestId)),
               );
             },
@@ -91,25 +100,30 @@ String _counterpartName(
   ChatThread thread,
   UserRole role,
   Map<String, String> proNames,
+  AppLocalizations loc,
 ) {
   if (role == UserRole.professionnel) {
     final name = thread.request.clientName;
-    return name.isNotEmpty ? name : 'Client';
+    return name.isNotEmpty ? name : loc.text('Client', 'Client');
   }
   final name = proNames[thread.request.professionalId];
-  return (name?.isNotEmpty ?? false) ? name! : 'Professionnel';
+  return (name?.isNotEmpty ?? false)
+      ? name!
+      : loc.text('Professionnel', 'Professional');
 }
 
 class _ThreadTile extends StatelessWidget {
   final ChatThread thread;
   final String counterpart;
   final bool unread;
+  final AppLocalizations loc;
   final VoidCallback onTap;
 
   const _ThreadTile({
     required this.thread,
     required this.counterpart,
     required this.unread,
+    required this.loc,
     required this.onTap,
   });
 
@@ -142,7 +156,7 @@ class _ThreadTile extends StatelessWidget {
           ),
           if (thread.lastMessageAt != null)
             Text(
-              _relativeTime(thread.lastMessageAt!),
+              _relativeTime(thread.lastMessageAt!, loc),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),
@@ -152,8 +166,7 @@ class _ThreadTile extends StatelessWidget {
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
         child: Text(
-          '${request.metier.label} · ${thread.lastMessage ?? ''}',
-          maxLines: 1,
+          '${loc.metierLabel(request.metier)} · ${thread.lastMessage ?? ''}',
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(
             color: unread
@@ -169,12 +182,19 @@ class _ThreadTile extends StatelessWidget {
 
 /// « à l'instant », « il y a 5 min », « 12/03 » — suffisant pour un fil de
 /// discussion lié à une intervention.
-String _relativeTime(DateTime dt) {
+String _relativeTime(DateTime dt, AppLocalizations loc) {
   final diff = DateTime.now().difference(dt);
 
-  if (diff.inMinutes < 1) return 'à l\'instant';
-  if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
-  if (diff.inHours < 24) return 'il y a ${diff.inHours} h';
+  if (diff.inMinutes < 1) return loc.text('à l\'instant', 'just now');
+  if (diff.inMinutes < 60) {
+    return loc.text(
+      'il y a ${diff.inMinutes} min',
+      '${diff.inMinutes} min ago',
+    );
+  }
+  if (diff.inHours < 24) {
+    return loc.text('il y a ${diff.inHours} h', '${diff.inHours} hr ago');
+  }
 
   final day = dt.day.toString().padLeft(2, '0');
   final month = dt.month.toString().padLeft(2, '0');

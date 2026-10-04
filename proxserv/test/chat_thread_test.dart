@@ -52,18 +52,12 @@ void main() {
     });
 
     test('son propre message ne se marque pas non lu', () {
-      final t = thread(
-        lastMessageAt: base,
-        lastMessageSenderId: 'client-1',
-      );
+      final t = thread(lastMessageAt: base, lastMessageSenderId: 'client-1');
       expect(t.isUnreadFor('client-1', UserRole.client), isFalse);
     });
 
     test('un message reçu sans curseur de lecture est non lu', () {
-      final t = thread(
-        lastMessageAt: base,
-        lastMessageSenderId: 'pro-1',
-      );
+      final t = thread(lastMessageAt: base, lastMessageSenderId: 'pro-1');
       expect(t.isUnreadFor('client-1', UserRole.client), isTrue);
     });
 
@@ -122,17 +116,17 @@ void main() {
     ];
 
     test('« à compléter » regroupe en attente et acceptée', () {
-      expect(
-        all.pending.map((r) => r.status),
-        [RequestStatus.enAttente, RequestStatus.acceptee],
-      );
+      expect(all.pending.map((r) => r.status), [
+        RequestStatus.enAttente,
+        RequestStatus.acceptee,
+      ]);
     });
 
     test('« complétées » regroupe terminée et refusée', () {
-      expect(
-        all.closed.map((r) => r.status),
-        [RequestStatus.terminee, RequestStatus.refusee],
-      );
+      expect(all.closed.map((r) => r.status), [
+        RequestStatus.terminee,
+        RequestStatus.refusee,
+      ]);
     });
 
     test('une liste vide ne lève pas', () {

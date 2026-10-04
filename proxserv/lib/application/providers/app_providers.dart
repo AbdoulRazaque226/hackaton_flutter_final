@@ -105,7 +105,7 @@ class ProfessionalNotifier
         updates['latitude'] = position.latitude;
         updates['longitude'] = position.longitude;
 
-        // Mise à jour locale 
+        // Mise à jour locale
         state = AsyncData(
           currentProfile.copyWith(
             disponible: newStatus,
@@ -133,7 +133,9 @@ final professionalRequestsProvider = StreamProvider<List<ServiceRequest>>((
   ref,
 ) {
   final user = ref.watch(currentUserProvider).value;
-  if (user == null || user.role != UserRole.professionnel) return Stream.value([]);
+  if (user == null || user.role != UserRole.professionnel) {
+    return Stream.value([]);
+  }
 
   return ref
       .watch(firestoreProvider)

@@ -6,6 +6,7 @@ import '../../../application/providers/app_providers.dart';
 import '../../../application/providers/chat_providers.dart';
 import '../../../application/providers/directory_providers.dart';
 import '../../../application/providers/history_providers.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/chat_thread.dart';
 import '../../navigation/chat_route.dart';
@@ -22,23 +23,21 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.fromContext(context);
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Historique'),
-          bottom: const TabBar(
+          title: Text(loc.requestsTab),
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'À compléter'),
-              Tab(text: 'Complétées'),
+              Tab(text: loc.text('À compléter', 'In progress')),
+              Tab(text: loc.text('Complétées', 'Completed')),
             ],
           ),
         ),
         body: const TabBarView(
-          children: [
-            _HistoryList(closed: false),
-            _HistoryList(closed: true),
-          ],
+          children: [_HistoryList(closed: false), _HistoryList(closed: true)],
         ),
       ),
     );
@@ -54,15 +53,19 @@ class _HistoryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.fromContext(context);
     final requestsAsync = ref.watch(myRequestsProvider);
     final user = ref.watch(currentUserProvider).value;
 
     if (requestsAsync.hasError) {
       return EmptyState(
         icon: Icons.cloud_off,
-        title: 'Chargement impossible',
-        detail: 'Vérifiez votre connexion internet.',
-        actionLabel: 'Réessayer',
+        title: loc.text('Chargement impossible', 'Unable to load requests'),
+        detail: loc.text(
+          'Vérifiez votre connexion internet.',
+          'Check your internet connection.',
+        ),
+        actionLabel: loc.text('Réessayer', 'Retry'),
         onAction: () => ref.invalidate(myRequestsProvider),
       );
     }
@@ -78,19 +81,25 @@ class _HistoryList extends ConsumerWidget {
       return EmptyState(
         icon: closed ? Icons.task_alt : Icons.assignment_outlined,
         title: closed
-            ? 'Aucune intervention terminée'
-            : 'Rien à compléter',
+            ? loc.text('Aucune intervention terminée', 'No completed requests')
+            : loc.text('Rien à compléter', 'Nothing to complete'),
         detail: closed
-            ? 'Vos interventions terminées apparaîtront ici.'
-            : 'Vous n\'avez aucune demande en attente ou acceptée.',
+            ? loc.text(
+                'Vos interventions terminées apparaîtront ici.',
+                'Completed requests will appear here.',
+              )
+            : loc.text(
+                'Vous n\'avez aucune demande en attente ou acceptée.',
+                'You have no pending or accepted requests.',
+              ),
       );
     }
 
     // Les fils de discussion servent uniquement à savoir si des messages non
     // lus attendent l'utilisateur sur cette demande.
     final threads = {
-      for (final thread in ref.watch(myChatThreadsProvider).value ??
-          const <ChatThread>[])
+      for (final thread
+          in ref.watch(myChatThreadsProvider).value ?? const <ChatThread>[])
         thread.requestId: thread,
     };
     final proNames = ref.watch(proDirectoryProvider).value ?? const {};
@@ -105,7 +114,12 @@ class _HistoryList extends ConsumerWidget {
           request: request,
           role: user?.role ?? UserRole.client,
           proName: proNames[request.professionalId],
-          unread: threads[request.id]?.isUnreadFor(uid, user?.role ?? UserRole.client) ?? false,
+          unread:
+              threads[request.id]?.isUnreadFor(
+                uid,
+                user?.role ?? UserRole.client,
+              ) ??
+              false,
           onTap: () => context.push(chatRoutePath(request.id)),
         );
       },

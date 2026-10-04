@@ -12,7 +12,8 @@ double distanceKm(double lat1, double lon1, double lat2, double lon2) {
   const earthRadiusKm = 6371.0;
   final dLat = _rad(lat2 - lat1);
   final dLon = _rad(lon2 - lon1);
-  final a = math.pow(math.sin(dLat / 2), 2) +
+  final a =
+      math.pow(math.sin(dLat / 2), 2) +
       math.cos(_rad(lat1)) *
           math.cos(_rad(lat2)) *
           math.pow(math.sin(dLon / 2), 2);

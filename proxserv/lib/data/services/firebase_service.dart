@@ -80,14 +80,21 @@ class FirebaseService {
     return _professionals
         .where('metier', isEqualTo: metier.name)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => ProfessionalProfile.fromMap(d.id, d.data()))
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => ProfessionalProfile.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
   Stream<ProfessionalProfile?> watchMyProfessionalProfile(String uid) {
-    return _professionals.doc(uid).snapshots().map(
-        (doc) => doc.exists ? ProfessionalProfile.fromMap(uid, doc.data()!) : null);
+    return _professionals
+        .doc(uid)
+        .snapshots()
+        .map(
+          (doc) =>
+              doc.exists ? ProfessionalProfile.fromMap(uid, doc.data()!) : null,
+        );
   }
 
   Future<void> setDisponibilite(String uid, bool disponible) {
@@ -131,13 +138,18 @@ class FirebaseService {
   }
 
   /// Demandes reçues par un professionnel (son tableau de bord).
-  Stream<List<ServiceRequest>> watchRequestsForProfessional(String professionalId) {
+  Stream<List<ServiceRequest>> watchRequestsForProfessional(
+    String professionalId,
+  ) {
     return _requests
         .where('professionalId', isEqualTo: professionalId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => ServiceRequest.fromMap(d.id, d.data())).toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => ServiceRequest.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
   /// Demandes envoyées par un client (suivi de statut).
@@ -146,8 +158,11 @@ class FirebaseService {
         .where('clientId', isEqualTo: clientId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => ServiceRequest.fromMap(d.id, d.data())).toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => ServiceRequest.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
   Future<void> updateRequestStatus(String requestId, RequestStatus status) {
@@ -166,14 +181,15 @@ class FirebaseService {
 
   // ---------- ADMIN ----------
 
-  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _db.collection('users');
 
   /// Tous les comptes (clients et professionnels confondus), pour
   /// l'écran d'administration.
   Stream<List<AppUser>> watchAllUsers() {
     return _users.snapshots().map(
-          (snap) => snap.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList(),
-        );
+      (snap) => snap.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList(),
+    );
   }
 
   /// Bloque ou débloque un compte. Un compte bloqué est redirigé vers un
@@ -187,18 +203,18 @@ class FirebaseService {
   /// statistiques globales de l'écran d'administration.
   Stream<List<ProfessionalProfile>> watchAllProfessionals() {
     return _professionals.snapshots().map(
-          (snap) => snap.docs
-              .map((d) => ProfessionalProfile.fromMap(d.id, d.data()))
-              .toList(),
-        );
+      (snap) => snap.docs
+          .map((d) => ProfessionalProfile.fromMap(d.id, d.data()))
+          .toList(),
+    );
   }
 
   /// Toutes les demandes, tous clients/professionnels confondus — utilisé
   /// pour les statistiques globales de l'écran d'administration.
   Stream<List<ServiceRequest>> watchAllRequests() {
     return _requests.snapshots().map(
-          (snap) =>
-              snap.docs.map((d) => ServiceRequest.fromMap(d.id, d.data())).toList(),
-        );
+      (snap) =>
+          snap.docs.map((d) => ServiceRequest.fromMap(d.id, d.data())).toList(),
+    );
   }
 }

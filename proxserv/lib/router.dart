@@ -11,8 +11,11 @@ import 'presentation/screens/professional_dashboard_screen.dart';
 import 'presentation/screens/professional_detail_screen.dart';
 import 'presentation/screens/admin_dashboard_screen.dart';
 import 'presentation/screens/blocked_screen.dart';
+import 'presentation/screens/request_form_screen.dart';
+import 'presentation/screens/map_screen.dart';
 import 'presentation/screens/chat/chat_screen.dart';
 import 'presentation/screens/dashboard/dashboard_shell.dart';
+import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/navigation/chat_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -47,7 +50,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Cas 3 : l'utilisateur est connecté et tente d'aller sur Login/Register,
       // vient d'ouvrir l'application à la racine '/', ou était bloqué puis
       // vient d'être débloqué (encore sur /blocked)
-      if (isLoggingIn || state.matchedLocation == '/' || state.matchedLocation == '/blocked') {
+      if (isLoggingIn ||
+          state.matchedLocation == '/' ||
+          state.matchedLocation == '/blocked') {
         // Routage selon le rôle enregistré dans le document Firestore
         switch (user.role) {
           case UserRole.admin:
@@ -57,6 +62,24 @@ final routerProvider = Provider<GoRouter>((ref) {
           case UserRole.client:
             return '/client/home';
         }
+      }
+
+      final location = state.matchedLocation;
+      final isClientRoute =
+          location.startsWith('/client/') || location == '/map';
+      final isProfessionalRoute = location.startsWith('/professional/');
+      final isAdminRoute = location.startsWith('/admin/');
+      switch (user.role) {
+        case UserRole.client:
+          if (isProfessionalRoute || isAdminRoute) return '/client/home';
+        case UserRole.professionnel:
+          if (isClientRoute || isAdminRoute) {
+            return '/professional/dashboard';
+          }
+        case UserRole.admin:
+          if (isClientRoute || isProfessionalRoute) {
+            return '/admin/dashboard';
+          }
       }
 
       // Pas de redirection nécessaire pour les autres routes
@@ -76,27 +99,38 @@ final routerProvider = Provider<GoRouter>((ref) {
         // redirect ci-dessus (déclenché par currentUserProvider) qui
         // s'en charge dès que le rôle est connu — évite une double
         // navigation entre le Navigator interne et GoRouter.
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) => LoginScreen(onSignedIn: (_) {}),
       ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const RegisterScreen(),
+        builder: (context, state) => RegisterScreen(onRegistered: (_) {}),
       ),
-      GoRoute(
-        path: '/blocked',
-        builder: (context, state) => BlockedScreen(),
-      ),
+      GoRoute(path: '/blocked', builder: (context, state) => BlockedScreen()),
       // --- ESPACE CLIENT ---
       GoRoute(
         path: '/client/home',
+        builder: (context, state) {
+          final initialIndex = switch (state.uri.queryParameters['tab']) {
+            'requests' => 2,
+            'explore' => 1,
+            _ => 0,
+          };
+          return DashboardShell(
+            home: ClientHomeScreen(
+              onSelect: (pro) =>
+                  context.push('/client/professional', extra: pro),
+            ),
+            initialIndex: initialIndex,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/client/explore',
         builder: (context, state) => DashboardShell(
-          // Ici on branche vraiment la fiche professionnel : au clic sur
-          // un professionnel, on pousse la route dédiée en lui passant le
-          // profil sélectionné.
           home: ClientHomeScreen(
-            onSelect: (pro) =>
-                context.push('/client/professional', extra: pro),
+            onSelect: (pro) => context.push('/client/professional', extra: pro),
           ),
+          initialIndex: 1,
         ),
       ),
       GoRoute(
@@ -105,7 +139,25 @@ final routerProvider = Provider<GoRouter>((ref) {
           profile: state.extra as ProfessionalProfile,
         ),
       ),
+      GoRoute(
+        path: '/client/request-form',
+        builder: (context, state) =>
+            RequestFormScreen(professional: state.extra as ProfessionalProfile),
+      ),
+      GoRoute(
+        path: '/map',
+        builder: (context, state) => MapScreen(
+          professionals:
+              (state.extra as List<ProfessionalProfile>?) ?? const [],
+          onSelect: (pro) => context.push('/client/professional', extra: pro),
+        ),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
       // --- ESPACE PROFESSIONNEL ---
+
       GoRoute(
         path: '/professional/dashboard',
         builder: (context, state) =>
@@ -114,14 +166,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Conversation rattachée à une demande, commune aux deux rôles.
       GoRoute(
         path: chatRoutePattern,
-        builder: (context, state) => ChatScreen(
-          requestId: state.pathParameters[chatRequestIdParam]!,
-        ),
+        builder: (context, state) =>
+            ChatScreen(requestId: state.pathParameters[chatRequestIdParam]!),
       ),
       // --- ESPACE ADMIN ---
       GoRoute(
         path: '/admin/dashboard',
-        builder: (context, state) =>  AdminDashboardScreen(),
+        builder: (context, state) => AdminDashboardScreen(),
       ),
     ],
     // Gestion globale d'une page d'erreur 404

@@ -35,9 +35,7 @@ final myChatThreadsProvider = StreamProvider<List<ChatThread>>((ref) {
             .map(ChatThread.fromRequestDoc)
             .where((thread) => thread.hasMessages)
             .toList();
-        threads.sort(
-          (a, b) => b.lastMessageAt!.compareTo(a.lastMessageAt!),
-        );
+        threads.sort((a, b) => b.lastMessageAt!.compareTo(a.lastMessageAt!));
         return threads;
       });
 });
@@ -54,8 +52,10 @@ final unreadChatCountProvider = Provider<int>((ref) {
 
 /// La demande à laquelle appartient un fil — sert d'en-tête du thread
 /// (métier, description, nom de l'interlocuteur).
-final requestByIdProvider =
-    StreamProvider.family<ServiceRequest?, String>((ref, requestId) {
+final requestByIdProvider = StreamProvider.family<ServiceRequest?, String>((
+  ref,
+  requestId,
+) {
   return ref
       .watch(firestoreProvider)
       .collection('requests')
@@ -72,8 +72,10 @@ final requestByIdProvider =
 });
 
 /// Messages d'un fil, du plus ancien au plus récent.
-final messagesProvider =
-    StreamProvider.family<List<ChatMessage>, String>((ref, requestId) {
+final messagesProvider = StreamProvider.family<List<ChatMessage>, String>((
+  ref,
+  requestId,
+) {
   return ref.watch(chatActionsProvider).watchMessages(requestId);
 });
 

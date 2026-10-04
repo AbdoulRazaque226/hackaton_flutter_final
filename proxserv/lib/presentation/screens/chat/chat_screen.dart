@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../application/providers/app_providers.dart';
 import '../../../application/providers/chat_providers.dart';
 import '../../../application/providers/directory_providers.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/chat_message.dart';
 import '../../../data/models/enums.dart';
@@ -58,7 +59,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _sending = true);
 
     try {
-      await ref.read(chatActionsProvider).sendMessage(
+      await ref
+          .read(chatActionsProvider)
+          .sendMessage(
             requestId: widget.requestId,
             senderId: user.uid,
             text: text,
@@ -68,10 +71,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // le laisser disparaître silencieusement.
       _controller.text = text;
       if (mounted) {
+        final loc = AppLocalizations.fromContext(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Envoi impossible : $error'),
-            action: SnackBarAction(label: 'Réessayer', onPressed: _send),
+            content: Text(
+              loc.text('Envoi impossible : $error', 'Unable to send: $error'),
+            ),
+            action: SnackBarAction(
+              label: loc.text('Réessayer', 'Retry'),
+              onPressed: _send,
+            ),
           ),
         );
       }
@@ -84,6 +93,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
     final request = ref.watch(requestByIdProvider(widget.requestId)).value;
+    final loc = AppLocalizations.fromContext(context);
 
     // Garde : seuls le client et le professionnel de la demande ont accès au
     // fil. Les règles Firestore refusent aussi l'écriture, mais l'écran ne doit
@@ -93,21 +103,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         user.uid != request.clientId &&
         user.uid != request.professionalId) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Conversation')),
-        body: const EmptyState(
+        appBar: AppBar(title: Text(loc.text('Conversation', 'Conversation'))),
+        body: EmptyState(
           icon: Icons.lock_outline,
-          title: 'Accès refusé',
-          detail: 'Cette conversation ne vous concerne pas.',
+          title: loc.text('Accès refusé', 'Access denied'),
+          detail: loc.text(
+            'Cette conversation ne vous concerne pas.',
+            'This conversation is not associated with your account.',
+          ),
         ),
       );
     }
 
     final role = user?.role ?? UserRole.client;
     final counterpart = request == null
-        ? 'Conversation'
+        ? loc.text('Conversation', 'Conversation')
         : role == UserRole.professionnel
-            ? (request.clientName.isNotEmpty ? request.clientName : 'Client')
-            : (_proName(request) ?? 'Professionnel');
+        ? (request.clientName.isNotEmpty
+              ? request.clientName
+              : loc.text('Client', 'Client'))
+        : (_proName(request) ?? loc.text('Professionnel', 'Professional'));
 
     return Scaffold(
       appBar: AppBar(
@@ -117,7 +132,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Text(counterpart, style: const TextStyle(fontSize: 16)),
             if (request != null)
               Text(
-                request.metier.label,
+                loc.metierLabel(request.metier),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
           ],
@@ -126,11 +141,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           if (request != null) _ContextHeader(request: request),
-          Expanded(child: _buildMessages(role)),
+          Expanded(child: _buildMessages(role, loc)),
           _Composer(
             controller: _controller,
             sending: _sending,
             onSend: _send,
+            loc: loc,
           ),
         ],
       ),
@@ -144,14 +160,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return (name?.isNotEmpty ?? false) ? name : null;
   }
 
-  Widget _buildMessages(UserRole role) {
+  Widget _buildMessages(UserRole role, AppLocalizations loc) {
     final messagesAsync = ref.watch(messagesProvider(widget.requestId));
 
     if (messagesAsync.hasError) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.cloud_off,
-        title: 'Messages indisponibles',
-        detail: 'Vérifiez votre connexion internet.',
+        title: loc.text('Messages indisponibles', 'Messages unavailable'),
+        detail: loc.text(
+          'Vérifiez votre connexion internet.',
+          'Check your internet connection.',
+        ),
       );
     }
 
@@ -161,12 +180,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     if (messages.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.waving_hand_outlined,
-        title: 'Démarrez la conversation',
-        detail:
-            'Précisez l\'adresse, le créneau qui vous convient, ou toute '
-            'information utile sur la tâche.',
+        title: loc.text('Démarrez la conversation', 'Start the conversation'),
+        detail: loc.text(
+          'Précisez l\'adresse, le créneau qui vous convient, ou toute information utile sur la tâche.',
+          'Share the address, a suitable time, or any useful information about the job.',
+        ),
       );
     }
 
@@ -193,9 +213,12 @@ class _ContextHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.fromContext(context);
     final closed =
         request.status == RequestStatus.terminee ||
-        request.status == RequestStatus.refusee;
+        request.status == RequestStatus.refusee ||
+        request.status == RequestStatus.annulee ||
+        request.status == RequestStatus.sansReponse;
 
     return Container(
       width: double.infinity,
@@ -207,7 +230,10 @@ class _ContextHeader extends StatelessWidget {
           Text(
             request.description.isNotEmpty
                 ? request.description
-                : 'Demande ${request.metier.label.toLowerCase()}',
+                : loc.text(
+                    'Demande ${loc.metierLabel(request.metier).toLowerCase()}',
+                    '${loc.metierLabel(request.metier)} request',
+                  ),
             style: theme.textTheme.bodySmall,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -215,7 +241,10 @@ class _ContextHeader extends StatelessWidget {
           if (closed) ...[
             const SizedBox(height: 4),
             Text(
-              'Demande clôturée — la conversation reste consultable.',
+              loc.text(
+                'Demande clôturée — la conversation reste consultable.',
+                'Request closed; this conversation remains available.',
+              ),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.outline,
                 fontStyle: FontStyle.italic,
@@ -247,7 +276,9 @@ class _Bubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
-        mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: mine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Flexible(
             child: Container(
@@ -291,11 +322,13 @@ class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
+  final AppLocalizations loc;
 
   const _Composer({
     required this.controller,
     required this.sending,
     required this.onSend,
+    required this.loc,
   });
 
   @override
@@ -315,7 +348,7 @@ class _Composer extends StatelessWidget {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
                 decoration: InputDecoration(
-                  hintText: 'Votre message…',
+                  hintText: loc.text('Votre message…', 'Your message…'),
                   isDense: true,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
@@ -337,7 +370,7 @@ class _Composer extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.send),
-              tooltip: 'Envoyer',
+              tooltip: loc.text('Envoyer', 'Send'),
             ),
           ],
         ),

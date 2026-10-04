@@ -43,7 +43,8 @@ class ChatMessage {
       requestId: requestId,
       senderId: map['senderId'] as String? ?? '',
       text: map['text'] as String? ?? '',
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ??
+      createdAt:
+          (map['createdAt'] as Timestamp?)?.toDate() ??
           DateTime.fromMillisecondsSinceEpoch(0),
     );
   }

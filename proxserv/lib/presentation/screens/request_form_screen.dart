@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/localization/app_localizations.dart';
 import '../../data/models/professional_profile.dart';
 import '../../data/services/firebase_service.dart';
 import '../../data/services/location_service.dart';
-import 'my_requests_screen.dart';
 
 /// Écran de création d'une demande d'intervention.
 class RequestFormScreen extends StatefulWidget {
   final ProfessionalProfile professional;
-  final FirebaseService firebaseService;
+  final FirebaseService? firebaseService;
   final LocationService locationService;
   final String? clientId;
   final String? clientName;
@@ -17,12 +18,11 @@ class RequestFormScreen extends StatefulWidget {
   RequestFormScreen({
     super.key,
     required this.professional,
-    FirebaseService? firebaseService,
+    this.firebaseService,
     LocationService? locationService,
     this.clientId,
     this.clientName,
-  })  : firebaseService = firebaseService ?? FirebaseService(),
-        locationService = locationService ?? LocationService();
+  }) : locationService = locationService ?? LocationService();
 
   @override
   State<RequestFormScreen> createState() => _RequestFormScreenState();
@@ -81,7 +81,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   }
 
   Future<void> _submitForm() async {
+    final loc = AppLocalizations.fromContext(context);
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_currentPosition == null) {
+      setState(() {
+        _locationError = loc.text(
+          'La position GPS est indisponible. La demande ne peut pas être envoyée sans position réelle.',
+          'GPS location is unavailable. The request cannot be sent without a real location.',
+        );
+      });
       return;
     }
 
@@ -90,25 +100,31 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     });
 
     try {
-      final user = widget.firebaseService.currentUser;
-      final effectiveClientId = widget.clientId ?? user?.uid ?? 'client_inconnu';
+      final firebaseService = widget.firebaseService ?? FirebaseService();
+      final user = firebaseService.currentUser;
+      final effectiveClientId = widget.clientId ?? user?.uid;
       String effectiveClientName = widget.clientName ?? user?.displayName ?? '';
 
       if (effectiveClientName.isEmpty && user != null) {
-        final appUser = await widget.firebaseService.fetchAppUser(user.uid);
+        final appUser = await firebaseService.fetchAppUser(user.uid);
         if (appUser != null && appUser.displayName.isNotEmpty) {
           effectiveClientName = appUser.displayName;
         }
       }
 
-      if (effectiveClientName.isEmpty) {
-        effectiveClientName = 'Client ProxServ';
+      if (effectiveClientId == null || effectiveClientName.trim().isEmpty) {
+        throw StateError(
+          loc.text(
+            'Le compte client est incomplet. Vérifiez votre profil avant de continuer.',
+            'Client account details are incomplete. Check your profile before continuing.',
+          ),
+        );
       }
 
-      final lat = _currentPosition?.latitude ?? widget.professional.latitude;
-      final lon = _currentPosition?.longitude ?? widget.professional.longitude;
+      final lat = _currentPosition!.latitude;
+      final lon = _currentPosition!.longitude;
 
-      await widget.firebaseService.createRequest(
+      await firebaseService.createRequest(
         clientId: effectiveClientId,
         clientName: effectiveClientName,
         professionalId: widget.professional.uid,
@@ -121,8 +137,13 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Votre demande d\'intervention a été envoyée avec succès !'),
+        SnackBar(
+          content: Text(
+            loc.text(
+              'Votre demande d\'intervention a été envoyée avec succès !',
+              'Your service request was sent successfully.',
+            ),
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -132,31 +153,31 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          title: const Text('Demande envoyée'),
-          content: const Text(
-            'Votre demande a bien été enregistrée. Le professionnel en sera notifié.',
+          title: Text(loc.text('Demande envoyée', 'Request sent')),
+          content: Text(
+            loc.text(
+              'Votre demande a bien été enregistrée et apparaît dans vos demandes.',
+              'Your request has been saved and appears in Requests.',
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                Navigator.of(context).pop();
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/client/home');
+                }
               },
-              child: const Text('Fermer'),
+              child: Text(loc.text('Fermer', 'Close')),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (_) => MyRequestsScreen(
-                      clientId: effectiveClientId,
-                      firebaseService: widget.firebaseService,
-                    ),
-                  ),
-                );
+                context.go('/client/home?tab=requests');
               },
-              child: const Text('Voir mes demandes'),
+              child: Text(loc.text('Voir mes demandes', 'View my requests')),
             ),
           ],
         ),
@@ -165,7 +186,12 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur lors de l\'envoi de la demande : $e'),
+          content: Text(
+            loc.text(
+              'Erreur lors de l\'envoi de la demande : $e',
+              'Unable to send request: $e',
+            ),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -181,154 +207,182 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.fromContext(context);
     final pro = widget.professional;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Demande d\'intervention'),
-      ),
+      appBar: AppBar(title: Text(loc.requestFormTitle)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Récapitulatif du professionnel
-              Card(
-                elevation: 1,
-                color: theme.colorScheme.surfaceContainerLow,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Récapitulatif du professionnel
+                  Card(
+                    elevation: 1,
+                    color: theme.colorScheme.surfaceContainerLow,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.build,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pro.displayName.isNotEmpty
+                                      ? pro.displayName
+                                      : loc.text(
+                                          'Professionnel',
+                                          'Professional',
+                                        ),
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${loc.text('Métier', 'Trade')}: ${loc.metierLabel(pro.metier)}',
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Position GPS
+                  Row(
                     children: [
-                      CircleAvatar(
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Icon(
-                          Icons.build,
-                          color: theme.colorScheme.onPrimaryContainer,
+                      Icon(Icons.location_on, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _isLocating
+                              ? loc.text(
+                                  'Récupération de votre position...',
+                                  'Getting your location...',
+                                )
+                              : _currentPosition != null
+                              ? loc.gpsRecorded
+                              : (_locationError ??
+                                    loc.text(
+                                      'Position non disponible',
+                                      'Location unavailable',
+                                    )),
+                          style: theme.textTheme.bodyMedium,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              pro.displayName.isNotEmpty
-                                  ? pro.displayName
-                                  : 'Professionnel',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Métier : ${pro.metier.label}',
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ],
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: loc.text(
+                          'Actualiser la position',
+                          'Refresh location',
                         ),
+                        onPressed: _isLocating ? null : _fetchLocation,
                       ),
                     ],
                   ),
-                ),
-              ),
 
-              const SizedBox(height: 20),
+                  if (_locationError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        _locationError!,
+                        style: TextStyle(
+                          color: theme.colorScheme.error,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
 
-              // Position GPS
-              Row(
-                children: [
-                  Icon(Icons.location_on, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _isLocating
-                          ? 'Récupération de votre position...'
-                          : _currentPosition != null
-                              ? 'Position GPS enregistrée'
-                              : (_locationError ?? 'Position non disponible'),
-                      style: theme.textTheme.bodyMedium,
+                  const SizedBox(height: 20),
+
+                  // Description du besoin
+                  Text(
+                    loc.needDescription,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: 'Actualiser la position',
-                    onPressed: _isLocating ? null : _fetchLocation,
+                  const SizedBox(height: 8),
+
+                  TextFormField(
+                    controller: _descriptionController,
+                    maxLines: 5,
+                    maxLength: 500,
+                    decoration: InputDecoration(
+                      hintText: loc.text(
+                        'Décrivez brièvement votre problème ou votre besoin.',
+                        'Briefly describe your problem or service need.',
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return loc.text(
+                          'Veuillez saisir une description de votre besoin.',
+                          'Describe the service you need.',
+                        );
+                      }
+                      if (value.trim().length < 5) {
+                        return loc.text(
+                          'La description doit contenir au moins 5 caractères.',
+                          'The description must contain at least 5 characters.',
+                        );
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _submitForm,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              loc.sendRequest,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
                   ),
                 ],
               ),
-
-              if (_locationError != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(
-                    _locationError!,
-                    style: TextStyle(color: theme.colorScheme.error, fontSize: 12),
-                  ),
-                ),
-
-              const SizedBox(height: 20),
-
-              // Description du besoin
-              Text(
-                'Description de votre besoin',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 5,
-                maxLength: 500,
-                decoration: InputDecoration(
-                  hintText:
-                      'Décrivez brièvement votre problème ou votre besoin (ex: fuite d\'eau sous le lavabo, panne électrique dans le salon...)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignLabelWithHint: true,
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Veuillez saisir une description de votre besoin.';
-                  }
-                  if (value.trim().length < 5) {
-                    return 'La description doit contenir au moins 5 caractères.';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 30),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitForm,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Envoyer la demande',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -1,4 +1,4 @@
-/// Métiers proposés par ProxServ pour le MVP du hackathon.
+/// Métiers proposés par ProxServ.
 enum Metier {
   plombier,
   electricien,
@@ -6,6 +6,7 @@ enum Metier {
   menuisier,
   peintre,
   reparateur,
+  nettoyage,
   autre;
 
   String get label {
@@ -22,21 +23,28 @@ enum Metier {
         return 'Peintre';
       case Metier.reparateur:
         return 'Réparateur';
+      case Metier.nettoyage:
+        return 'Nettoyage';
       case Metier.autre:
         return 'Autre';
     }
   }
 
-  static Metier fromName(String name) =>
-      Metier.values.firstWhere((m) => m.name == name, orElse: () => Metier.autre);
+  static Metier fromName(String name) => Metier.values.firstWhere(
+    (m) => m.name == name,
+    orElse: () => Metier.autre,
+  );
 }
 
-/// Statut d'une demande d'intervention.
+/// Statut d'une demande d'intervention (7 Statuts officiels de la Mission 2A).
 enum RequestStatus {
   enAttente,
   acceptee,
+  enCours,
+  terminee,
   refusee,
-  terminee;
+  annulee,
+  sansReponse;
 
   String get label {
     switch (this) {
@@ -44,13 +52,21 @@ enum RequestStatus {
         return 'En attente';
       case RequestStatus.acceptee:
         return 'Acceptée';
-      case RequestStatus.refusee:
-        return 'Refusée';
+      case RequestStatus.enCours:
+        return 'En cours';
       case RequestStatus.terminee:
         return 'Terminée';
+      case RequestStatus.refusee:
+        return 'Refusée';
+      case RequestStatus.annulee:
+        return 'Annulée';
+      case RequestStatus.sansReponse:
+        return 'Sans réponse';
     }
   }
 
-  static RequestStatus fromName(String name) => RequestStatus.values
-      .firstWhere((s) => s.name == name, orElse: () => RequestStatus.enAttente);
+  static RequestStatus fromName(String name) => RequestStatus.values.firstWhere(
+    (s) => s.name == name,
+    orElse: () => RequestStatus.enAttente,
+  );
 }
