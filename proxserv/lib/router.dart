@@ -21,13 +21,33 @@ import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/navigation/chat_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  // On écoute le statut de l'utilisateur pour forcer une réévaluation des routes s'il change
-  final authStateAsync = ref.watch(currentUserProvider);
+  // IMPORTANT : on ne fait plus `ref.watch(currentUserProvider)` ici.
+  // Avant, chaque émission (y compris une simple écriture de profil ou un
+  // changement de préférence) recréait tout le GoRouter et ramenait
+  // l'utilisateur à l'accueil.
+  //
+  // `ref.listen` (contrairement à `ref.watch`) ne reconstruit pas ce
+  // provider : il se contente de prévenir `refreshNotifier`, qui dit à
+  // go_router de ré-exécuter `redirect`. Comme `redirect` lit sa valeur
+  // via ce même `currentUserProvider`, il n'y a aucun risque de lire une
+  // valeur pas encore à jour (plus de flux Firebase séparé à synchroniser).
+  final refreshNotifier = ValueNotifier<int>(0);
+  ref.listen<AsyncValue<AppUser?>>(
+    currentUserProvider,
+    (_, _) => refreshNotifier.value++,
+  );
+  ref.onDispose(refreshNotifier.dispose);
 
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: refreshNotifier,
     // Redirection automatique selon l'état d'authentification et le rôle
     redirect: (context, state) {
+      // `read`, pas `watch` : on veut la valeur la plus récente au moment de
+      // la redirection, sans dépendre de ce provider pour reconstruire le
+      // router.
+      final authStateAsync = ref.read(currentUserProvider);
+
       // Si les données utilisateur sont encore en cours de chargement, on ne redirige pas encore
       if (authStateAsync.isLoading) return null;
 
@@ -239,20 +259,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
-
-Widget _professionalUnavailable(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(
-      leading: BackButton(onPressed: () => context.go('/client/home?tab=explore')),
-    ),
-    body: const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'Ce profil professionnel n’est plus disponible. Revenez à Explore pour choisir un autre professionnel.',
-          textAlign: TextAlign.center,
-        ),
-      ),
-    ),
-  );
-}
