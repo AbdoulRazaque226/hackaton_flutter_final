@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/utils/distance.dart';
 import '../../data/models/professional_profile.dart';
+import 'category_image.dart';
 
 /// Single Reference ProfessionalCard Component (Mission 2A & 2B)
 class ProfessionalCard extends StatelessWidget {
@@ -24,17 +25,6 @@ class ProfessionalCard extends StatelessWidget {
     final theme = Theme.of(context);
     final loc = AppLocalizations.fromContext(context);
     final isDark = theme.brightness == Brightness.dark;
-
-    final hasRealRating =
-        profile.noteMoyenne != null && profile.nombreEvaluations > 0;
-
-    final ratingText = hasRealRating
-        ? profile.noteMoyenne!.toStringAsFixed(1).replaceAll('.', ',')
-        : 'Nouveau';
-
-    final evalText = hasRealRating
-        ? '(${profile.nombreEvaluations} avis)'
-        : '(aucun avis)';
 
     return Card(
       elevation: 1,
@@ -100,15 +90,26 @@ class ProfessionalCard extends StatelessWidget {
                                 : AppColors.brandPrimaryLight,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
-                            loc.metierLabel(profile.metier),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? AppColors.brandPrimaryLight
-                                  : AppColors.brandPrimaryDark,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CategoryImage(metier: profile.metier, size: 20),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  loc.metierLabel(profile.metier),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.brandPrimaryLight
+                                        : AppColors.brandPrimaryDark,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -134,17 +135,12 @@ class ProfessionalCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      profile.zoneIntervention.isNotEmpty
-                          ? profile.zoneIntervention
-                          : loc.text(
-                              'Zone non renseignée',
-                              'Service area not provided',
-                            ),
+                    _professionalLocation(profile, loc),
                       style: theme.textTheme.bodyMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (distanceKm != null || hasPosition(profile)) ...[
+                  if (distanceKm != null) ...[
                     const Icon(
                       Icons.near_me_outlined,
                       size: 16,
@@ -162,72 +158,55 @@ class ProfessionalCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  if (hasRealRating)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.star,
-                          size: 18,
-                          color: AppColors.brandAccent,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          ratingText,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(evalText, style: theme.textTheme.bodySmall),
-                      ],
-                    )
-                  else
-                    Text(
-                      loc.noReviewsYet,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  // CTA Action Principale : "Voir le profil"
-                  OutlinedButton.icon(
-                    onPressed: onTap,
-                    icon: const Icon(Icons.person_search_outlined, size: 16),
-                    label: Text(
-                      loc.text('Voir le profil', 'View profile'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, AppSpacing.touchTarget),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      side: BorderSide(
-                        color: theme.colorScheme.primary,
-                        width: 1,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.person_search_outlined, size: 16),
+                  label: Text(
+                    loc.text('Voir le profil', 'View profile'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ],
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, AppSpacing.touchTarget),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    side: BorderSide(
+                      color: theme.colorScheme.primary,
+                      width: 1,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _professionalLocation(
+    ProfessionalProfile profile,
+    AppLocalizations loc,
+  ) {
+    if (profile.zoneIntervention.trim().isNotEmpty) {
+      return profile.zoneIntervention;
+    }
+    final place = [
+      profile.neighborhood,
+      profile.city,
+      profile.country,
+    ].where((part) => part.trim().isNotEmpty).join(', ');
+    return place.isNotEmpty
+        ? place
+        : loc.text('Zone non disponible', 'Area unavailable');
   }
 }
 
@@ -260,14 +239,14 @@ class AvailabilityBadge extends StatelessWidget {
         children: [
           Icon(
             disponible ? Icons.check_circle : Icons.do_not_disturb_on,
-            size: 10,
+            size: 13,
             color: fg,
           ),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
               color: fg,
             ),

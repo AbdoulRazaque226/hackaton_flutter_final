@@ -9,8 +9,10 @@ import '../../../application/providers/history_providers.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/chat_thread.dart';
+import '../../../data/services/firebase_service.dart';
 import '../../navigation/chat_route.dart';
 import '../../widgets/empty_state.dart';
+import '../dashboard/dashboard_menu.dart';
 import 'request_tile.dart';
 
 /// Onglet « Historique » du dashboard.
@@ -28,6 +30,7 @@ class HistoryScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          leading: dashboardMenuLeading(context),
           title: Text(loc.requestsTab),
           bottom: TabBar(
             tabs: [
@@ -121,6 +124,13 @@ class _HistoryList extends ConsumerWidget {
               ) ??
               false,
           onTap: () => context.push(chatRoutePath(request.id)),
+          onRate: user?.role == UserRole.client
+              ? (note, commentaire) => FirebaseService().rateRequest(
+                  request.id,
+                  note,
+                  commentaire,
+                )
+              : null,
         );
       },
     );

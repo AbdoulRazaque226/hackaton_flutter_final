@@ -9,8 +9,11 @@ class ServiceRequest {
   final String professionalId;
   final Metier metier;
   final String description;
-  final double latitude;
-  final double longitude;
+  final String country;
+  final String city;
+  final String neighborhood;
+  final double? latitude;
+  final double? longitude;
   final RequestStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -24,8 +27,11 @@ class ServiceRequest {
     required this.professionalId,
     required this.metier,
     required this.description,
-    required this.latitude,
-    required this.longitude,
+    this.country = '',
+    this.city = '',
+    this.neighborhood = '',
+    this.latitude,
+    this.longitude,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -41,6 +47,9 @@ class ServiceRequest {
       professionalId: professionalId,
       metier: metier,
       description: description,
+      country: country,
+      city: city,
+      neighborhood: neighborhood,
       latitude: latitude,
       longitude: longitude,
       status: status ?? this.status,
@@ -59,8 +68,11 @@ class ServiceRequest {
       professionalId: map['professionalId'] as String,
       metier: Metier.fromName(map['metier'] as String? ?? 'autre'),
       description: map['description'] as String? ?? '',
-      latitude: (map['latitude'] as num).toDouble(),
-      longitude: (map['longitude'] as num).toDouble(),
+      country: map['country'] as String? ?? '',
+      city: map['city'] as String? ?? '',
+      neighborhood: map['neighborhood'] as String? ?? '',
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
       status: RequestStatus.fromName(map['status'] as String? ?? 'enAttente'),
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
@@ -76,8 +88,11 @@ class ServiceRequest {
       'professionalId': professionalId,
       'metier': metier.name,
       'description': description,
-      'latitude': latitude,
-      'longitude': longitude,
+      'country': country,
+      'city': city,
+      'neighborhood': neighborhood,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
       'status': status.name,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),

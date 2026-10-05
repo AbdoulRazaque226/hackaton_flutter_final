@@ -21,6 +21,76 @@ service cloud.firestore {
       );
     }
 
+    function isValidClientReview(requestId) {
+      return resource.data.clientId == request.auth.uid
+        && resource.data.status == 'terminee'
+        && resource.data.get('note', null) == null
+        && request.resource.data.note is int
+        && request.resource.data.note >= 1
+        && request.resource.data.note <= 5
+        && (
+          request.resource.data.get('commentaire', null) == null
+          || (request.resource.data.commentaire is string
+            && request.resource.data.commentaire.size() <= 1000)
+        );
+    }
+
+    function isProfessionalStatusUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['status', 'updatedAt'])
+        && request.resource.data.updatedAt is timestamp
+        && (
+          (resource.data.status == 'enAttente'
+            && request.resource.data.status in ['acceptee', 'refusee'])
+          || (resource.data.status == 'acceptee'
+            && request.resource.data.status == 'enCours')
+          || (resource.data.status == 'enCours'
+            && request.resource.data.status == 'terminee')
+        );
+    }
+
+    function isValidProfessionalReviewUpdate(proId) {
+      let reviewId = request.resource.data.lastReviewRequestId;
+      let requestBefore = get(
+        /databases/$(database)/documents/requests/$(reviewId)
+      );
+      let requestAfter = getAfter(
+        /databases/$(database)/documents/requests/$(reviewId)
+      );
+      let oldCount = resource.data.get('nombreEvaluations', 0);
+      let oldAverage = resource.data.get('noteMoyenne', 0);
+      let oldTotal = resource.data.get(
+        'totalNotes',
+        math.round(oldAverage * oldCount)
+      );
+      let newCount = request.resource.data.nombreEvaluations;
+      let newTotal = request.resource.data.totalNotes;
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+          'noteMoyenne',
+          'nombreEvaluations',
+          'totalNotes',
+          'lastReviewRequestId'
+        ])
+        && reviewId is string
+        && reviewId != resource.data.get('lastReviewRequestId', '')
+        && requestBefore.data.clientId == request.auth.uid
+        && requestBefore.data.professionalId == proId
+        && requestBefore.data.status == 'terminee'
+        && requestBefore.data.get('note', null) == null
+        && requestAfter.data.note is int
+        && requestAfter.data.note >= 1
+        && requestAfter.data.note <= 5
+        && requestAfter.data.diff(requestBefore.data)
+          .affectedKeys()
+          .hasOnly(['note', 'commentaire', 'updatedAt'])
+        && oldCount is int
+        && oldTotal is int
+        && newCount == oldCount + 1
+        && newTotal == oldTotal + requestAfter.data.note
+        && request.resource.data.noteMoyenne == newTotal / newCount;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -34,8 +104,25 @@ service cloud.firestore {
       // Visible par tous les utilisateurs connectés (recherche par métier).
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == proId;
-      // Un professionnel ne modifie que son propre profil (disponibilité, position).
-      allow update: if isSignedIn() && request.auth.uid == proId;
+      // Le professionnel ne modifie que disponibilité et position. Les
+      // agrégats d'avis ne changent qu'avec la demande terminée correspondante.
+      allow update: if isSignedIn() && (
+        (request.auth.uid == proId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'displayName',
+              'phone',
+              'metier',
+              'zoneIntervention',
+              'country',
+              'city',
+              'neighborhood',
+              'disponible',
+              'latitude',
+              'longitude'
+            ]))
+        || isValidProfessionalReviewUpdate(proId)
+      );
       allow delete: if false;
     }
 
@@ -48,10 +135,15 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isSignedIn() && request.resource.data.clientId == request.auth.uid;
-      // Le client peut noter/commenter ; le professionnel peut changer le statut.
+      // Le client peut noter une seule demande terminée ; le professionnel
+      // peut effectuer les transitions de statut prévues par son parcours.
       allow update: if isSignedIn() && (
-        request.auth.uid == resource.data.clientId ||
-        request.auth.uid == resource.data.professionalId
+        (request.auth.uid == resource.data.clientId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['note', 'commentaire', 'updatedAt'])
+          && isValidClientReview(requestId))
+        || (request.auth.uid == resource.data.professionalId
+          && isProfessionalStatusUpdate())
       )
       // Les deux acteurs d'une demande ne changent jamais : sans cette garde,
       // un intervenant pourrait se substituer à l'autre en réécrivant le champ

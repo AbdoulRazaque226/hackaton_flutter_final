@@ -119,7 +119,7 @@ class ProfessionalNotifier
           .read(firestoreProvider)
           .collection('professionals')
           .doc(currentProfile.uid)
-          .update({'disponible': newStatus});
+          .update(updates);
     } catch (e, stack) {
       // En cas d'erreur réseau
       state = AsyncData(currentProfile);

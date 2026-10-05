@@ -7,6 +7,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/professional_profile.dart';
+import '../dashboard/dashboard_menu.dart';
 
 /// Onglet « Profil » du dashboard.
 ///
@@ -25,6 +26,7 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: dashboardMenuLeading(context),
         title: Text(loc.profileTab),
         actions: [
           IconButton(
@@ -55,6 +57,9 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
   late final TextEditingController _name;
   late final TextEditingController _phone;
   late final TextEditingController _zone;
+  late final TextEditingController _country;
+  late final TextEditingController _city;
+  late final TextEditingController _neighborhood;
   late Metier _metier;
 
   bool _saving = false;
@@ -69,15 +74,38 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     _name = TextEditingController(text: widget.user.displayName);
     _phone = TextEditingController(text: widget.user.phone);
     _zone = TextEditingController(text: profile?.zoneIntervention ?? '');
+    _country = TextEditingController(
+      text: _isPro ? profile?.country ?? '' : widget.user.country,
+    );
+    _city = TextEditingController(
+      text: _isPro ? profile?.city ?? '' : widget.user.city,
+    );
+    _neighborhood = TextEditingController(
+      text: _isPro ? profile?.neighborhood ?? '' : widget.user.neighborhood,
+    );
     _metier = profile?.metier ?? Metier.autre;
-    for (final controller in [_name, _phone, _zone]) {
+    for (final controller in [
+      _name,
+      _phone,
+      _zone,
+      _country,
+      _city,
+      _neighborhood,
+    ]) {
       controller.addListener(_markDirty);
     }
   }
 
   @override
   void dispose() {
-    for (final controller in [_name, _phone, _zone]) {
+    for (final controller in [
+      _name,
+      _phone,
+      _zone,
+      _country,
+      _city,
+      _neighborhood,
+    ]) {
       controller
         ..removeListener(_markDirty)
         ..dispose();
@@ -97,11 +125,20 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
       await firestore.collection('users').doc(widget.user.uid).update({
         'displayName': _name.text.trim(),
         'phone': _phone.text.trim(),
+        if (!_isPro) 'country': _country.text.trim(),
+        if (!_isPro) 'city': _city.text.trim(),
+        if (!_isPro) 'neighborhood': _neighborhood.text.trim(),
       });
 
       if (_isPro && widget.profile != null) {
         await firestore.collection('professionals').doc(widget.user.uid).update(
-          {'metier': _metier.name, 'zoneIntervention': _zone.text.trim()},
+          {
+            'metier': _metier.name,
+            'zoneIntervention': _zone.text.trim(),
+            'country': _country.text.trim(),
+            'city': _city.text.trim(),
+            'neighborhood': _neighborhood.text.trim(),
+          },
         );
       }
 
@@ -177,12 +214,16 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                   children: [
                     const Icon(Icons.fact_check_outlined, size: 18),
                     const SizedBox(width: 8),
-                    Text(
-                      loc.text(
-                        'Profil complété à $completion %',
-                        'Profile $completion% complete',
+                    Expanded(
+                      child: Text(
+                        loc.text(
+                          'Profil complété à $completion %',
+                          'Profile $completion% complete',
+                        ),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
@@ -214,6 +255,16 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
             border: OutlineInputBorder(),
           ),
         ),
+
+        if (!_isPro) ...[
+          const SizedBox(height: 20),
+          Text(
+            loc.text('Lieu habituel', 'Usual location'),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 10),
+          _locationFields(loc),
+        ],
 
         if (_isPro) ...[
           const SizedBox(height: 20),
@@ -252,6 +303,8 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
               border: OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 12),
+          _locationFields(loc),
         ],
 
         const SizedBox(height: 24),
@@ -270,10 +323,45 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     );
   }
 
+  Widget _locationFields(AppLocalizations loc) {
+    return Column(
+      children: [
+        TextField(
+          controller: _country,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: loc.text('Pays', 'Country'),
+            hintText: loc.text('Ex. Côte d’Ivoire', 'e.g. Côte d’Ivoire'),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _city,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: loc.text('Ville', 'City'),
+            hintText: loc.text('Ex. Abidjan', 'e.g. Abidjan'),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _neighborhood,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: loc.text('Quartier / zone (facultatif)', 'Neighborhood / area (optional)'),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Proportion de champs renseignés, sur 2 (identité) ou 4 (professionnel).
   int _completion(ProfessionalProfile? profile) {
     var filled = 0;
-    final total = _isPro ? 4 : 2;
+    final total = _isPro ? 6 : 4;
 
     if (_name.text.trim().isNotEmpty) filled++;
     if (_phone.text.trim().isNotEmpty) filled++;
@@ -281,6 +369,8 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
       if (_zone.text.trim().isNotEmpty) filled++;
       if (_metier != Metier.autre) filled++;
     }
+    if (_country.text.trim().isNotEmpty) filled++;
+    if (_city.text.trim().isNotEmpty) filled++;
 
     return ((filled / total) * 100).round().clamp(0, 100);
   }

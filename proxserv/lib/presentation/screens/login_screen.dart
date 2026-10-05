@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../data/models/app_user.dart';
 import '../../data/services/firebase_service.dart';
+import '../widgets/brand_logo.dart';
 
 // Traduit une erreur Firebase en un message compréhensible par l'utilisateur.
 String authErrorMessage(FirebaseAuthException e, [AppLocalizations? loc]) {
@@ -157,12 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     // LOGO OFFICIEL PROXSERV (pas d'icône générique)
                     Center(
-                      child: Image.asset(
-                        'assets/images/logo.png',
-                        height: 80,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
+                      child: const BrandLogo(height: 80),
                     ),
                     const SizedBox(height: 12),
                     Text(

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
 import '../../data/models/professional_profile.dart';
 import '../widgets/professional_card.dart';
 
@@ -75,8 +76,6 @@ class ProfessionalDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final loc = AppLocalizations.fromContext(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     final hasRealRating =
         profile.noteMoyenne != null && profile.nombreEvaluations > 0;
 
@@ -94,66 +93,84 @@ class ProfessionalDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(loc.proProfileTitle)),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
+            constraints: const BoxConstraints(maxWidth: 680),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // En-tête avec avatar, nom, métier et statut
-                Center(
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 44,
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Text(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 480;
+                    final avatar = CircleAvatar(
+                      radius: 36,
+                      backgroundColor: theme.colorScheme.surface,
+                      child: Text(
+                        profile.displayName.isNotEmpty
+                            ? profile.displayName[0].toUpperCase()
+                            : 'P',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    );
+                    final identity = Column(
+                      crossAxisAlignment: compact
+                          ? CrossAxisAlignment.center
+                          : CrossAxisAlignment.start,
+                      children: [
+                        Text(
                           profile.displayName.isNotEmpty
-                              ? profile.displayName[0].toUpperCase()
-                              : 'P',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
+                              ? profile.displayName
+                              : loc.text(
+                                  'Professionnel anonyme',
+                                  'Anonymous professional',
+                                ),
+                          style: theme.textTheme.headlineMedium,
+                          textAlign: compact
+                              ? TextAlign.center
+                              : TextAlign.start,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          loc.metierLabel(profile.metier),
+                          style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.onPrimaryContainer,
                           ),
                         ),
+                        const SizedBox(height: AppSpacing.sm),
+                        AvailabilityBadge(disponible: profile.disponible),
+                      ],
+                    );
+
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: AppSpacing.borderRadiusLg,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        profile.displayName.isNotEmpty
-                            ? profile.displayName
-                            : loc.text(
-                                'Professionnel anonyme',
-                                'Anonymous professional',
-                              ),
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 6),
-                      Chip(
-                        label: Text(
-                          loc.metierLabel(profile.metier),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: theme.colorScheme.onSecondaryContainer,
-                          ),
-                        ),
-                        backgroundColor: theme.colorScheme.secondaryContainer,
-                      ),
-                      const SizedBox(height: 12),
-                      AvailabilityBadge(disponible: profile.disponible),
-                    ],
-                  ),
+                      child: compact
+                          ? Column(
+                              children: [
+                                avatar,
+                                const SizedBox(height: AppSpacing.md),
+                                identity,
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                avatar,
+                                const SizedBox(width: AppSpacing.lg),
+                                Expanded(child: identity),
+                              ],
+                            ),
+                    );
+                  },
                 ),
 
-                const SizedBox(height: 24),
-                Divider(
-                  color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.xl),
 
                 Text(
                   loc.text(
@@ -164,20 +181,16 @@ class ProfessionalDetailScreen extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
-                Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: isDark
-                          ? AppColors.borderDark
-                          : AppColors.borderLight,
-                    ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: AppSpacing.borderRadiusMd,
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Column(
                       children: [
                         _buildInfoRow(
@@ -190,9 +203,7 @@ class ProfessionalDetailScreen extends StatelessWidget {
                         ),
                         Divider(
                           height: 24,
-                          color: isDark
-                              ? AppColors.borderDark
-                              : AppColors.borderLight,
+                          color: theme.colorScheme.outlineVariant,
                         ),
                         _buildInfoRow(
                           context: context,
@@ -201,15 +212,11 @@ class ProfessionalDetailScreen extends StatelessWidget {
                             'Zone d\'intervention',
                             'Service area',
                           ),
-                          value: profile.zoneIntervention.isNotEmpty
-                              ? profile.zoneIntervention
-                              : loc.text('Non renseignée', 'Not provided'),
+                          value: _locationLabel(profile, loc),
                         ),
                         Divider(
                           height: 24,
-                          color: isDark
-                              ? AppColors.borderDark
-                              : AppColors.borderLight,
+                          color: theme.colorScheme.outlineVariant,
                         ),
                         _buildInfoRow(
                           context: context,
@@ -225,12 +232,12 @@ class ProfessionalDetailScreen extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: AppSpacing.xxl),
 
                 // Action Principale (CTA) : Demander une intervention
                 SizedBox(
                   width: double.infinity,
-                  height: 52,
+                  height: AppSpacing.touchTarget,
                   child: FilledButton.icon(
                     onPressed: () => _handleRequestIntervention(context),
                     icon: const Icon(Icons.send),
@@ -251,23 +258,25 @@ class ProfessionalDetailScreen extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
-                // Action Secondaire : Appeler le professionnel
+                // Calling remains available when a real phone number is listed;
+                // availability describes service status, not phone validity.
                 SizedBox(
                   width: double.infinity,
-                  height: 50,
+                  height: AppSpacing.touchTarget,
                   child: OutlinedButton.icon(
-                    onPressed: profile.disponible
+                    key: const ValueKey('professional-call-button'),
+                    onPressed: profile.phone.trim().isNotEmpty
                         ? () => _makePhoneCall(context)
                         : null,
                     icon: const Icon(Icons.phone),
                     label: Text(
-                      profile.disponible
+                      profile.phone.trim().isNotEmpty
                           ? loc.callPro
                           : loc.text(
-                              'Téléphone indisponible',
-                              'Phone unavailable',
+                              'Téléphone non renseigné',
+                              'Phone number not provided',
                             ),
                       style: const TextStyle(
                         fontSize: 16,
@@ -276,7 +285,7 @@ class ProfessionalDetailScreen extends StatelessWidget {
                     ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(
-                        color: profile.disponible
+                        color: profile.phone.trim().isNotEmpty
                             ? theme.colorScheme.primary
                             : theme.colorScheme.outline,
                         width: 1.5,
@@ -286,6 +295,17 @@ class ProfessionalDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  loc.text(
+                    'Après l’envoi d’une demande, vous pourrez lui écrire directement.',
+                    'After sending a service request, you can message this professional.',
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -329,5 +349,22 @@ class ProfessionalDetailScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _locationLabel(
+    ProfessionalProfile profile,
+    AppLocalizations loc,
+  ) {
+    if (profile.zoneIntervention.trim().isNotEmpty) {
+      return profile.zoneIntervention;
+    }
+    final place = [
+      profile.neighborhood,
+      profile.city,
+      profile.country,
+    ].where((part) => part.trim().isNotEmpty).join(', ');
+    return place.isNotEmpty
+        ? place
+        : loc.text('Zone non disponible', 'Area unavailable');
   }
 }

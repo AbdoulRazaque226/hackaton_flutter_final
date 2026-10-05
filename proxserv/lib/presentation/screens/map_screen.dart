@@ -78,7 +78,7 @@ class _MapScreenState extends State<MapScreen> {
     final center = me != null
         ? LatLng(me.latitude, me.longitude)
         : visible.isNotEmpty
-        ? LatLng(visible.first.latitude, visible.first.longitude)
+        ? LatLng(visible.first.latitude!, visible.first.longitude!)
         : null;
 
     if (center == null) {
@@ -150,7 +150,7 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     for (final p in visible)
                       Marker(
-                        point: LatLng(p.latitude, p.longitude),
+                        point: LatLng(p.latitude!, p.longitude!),
                         width: 44,
                         height: 44,
                         child: GestureDetector(
@@ -181,7 +181,12 @@ class _MapScreenState extends State<MapScreen> {
     final me = _me;
     final km = me == null
         ? null
-        : distanceKm(me.latitude, me.longitude, pro.latitude, pro.longitude);
+        : distanceKm(
+            me.latitude,
+            me.longitude,
+            pro.latitude!,
+            pro.longitude!,
+          );
 
     showModalBottomSheet<void>(
       context: context,

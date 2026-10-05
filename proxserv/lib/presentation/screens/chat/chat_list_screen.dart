@@ -10,6 +10,7 @@ import '../../../data/models/app_user.dart';
 import '../../../data/models/chat_thread.dart';
 import '../../navigation/chat_route.dart';
 import '../../widgets/empty_state.dart';
+import '../dashboard/dashboard_menu.dart';
 import '../register_screen.dart' show metierIcon;
 
 /// Onglet « Chat » du dashboard : liste des conversations.
@@ -29,6 +30,7 @@ class ChatListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: dashboardMenuLeading(context),
         title: Text(loc.messagesTab),
         actions: [
           IconButton(

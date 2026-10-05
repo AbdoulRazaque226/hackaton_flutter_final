@@ -52,7 +52,7 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.brandPrimary,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(AppSpacing.touchTarget),
+          minimumSize: const Size(0, AppSpacing.touchTarget),
           shape: RoundedRectangleBorder(
             borderRadius: AppSpacing.borderRadiusSm,
           ),
@@ -63,7 +63,7 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.brandPrimary,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(AppSpacing.touchTarget),
+          minimumSize: const Size(0, AppSpacing.touchTarget),
           shape: RoundedRectangleBorder(
             borderRadius: AppSpacing.borderRadiusSm,
           ),
@@ -172,7 +172,7 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.brandPrimary,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(AppSpacing.touchTarget),
+          minimumSize: const Size(0, AppSpacing.touchTarget),
           shape: RoundedRectangleBorder(
             borderRadius: AppSpacing.borderRadiusSm,
           ),
@@ -183,7 +183,7 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.brandPrimary,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(AppSpacing.touchTarget),
+          minimumSize: const Size(0, AppSpacing.touchTarget),
           shape: RoundedRectangleBorder(
             borderRadius: AppSpacing.borderRadiusSm,
           ),
