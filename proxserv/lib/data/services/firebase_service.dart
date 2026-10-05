@@ -34,6 +34,9 @@ class FirebaseService {
     required UserRole role,
     Metier? metier,
     String? zoneIntervention,
+    String country = '',
+    String city = '',
+    String neighborhood = '',
   }) async {
     final cred = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -56,9 +59,10 @@ class FirebaseService {
         phone: phone,
         metier: metier ?? Metier.autre,
         zoneIntervention: zoneIntervention ?? '',
+        country: country,
+        city: city,
+        neighborhood: neighborhood,
         disponible: false,
-        latitude: 0,
-        longitude: 0,
       );
       await _db.collection('professionals').doc(uid).set(profile.toMap());
     }
@@ -82,7 +86,8 @@ class FirebaseService {
         .snapshots()
         .map(
           (snap) => snap.docs
-              .map((d) => ProfessionalProfile.fromMap(d.id, d.data()))
+              .map((d) => ProfessionalProfile.tryFromMap(d.id, d.data()))
+              .whereType<ProfessionalProfile>()
               .toList(),
         );
   }
@@ -110,14 +115,17 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _requests =>
       _db.collection('requests');
 
-  Future<void> createRequest({
+  Future<String> createRequest({
     required String clientId,
     required String clientName,
     required String professionalId,
     required Metier metier,
     required String description,
-    required double latitude,
-    required double longitude,
+    required String country,
+    required String city,
+    String neighborhood = '',
+    double? latitude,
+    double? longitude,
   }) async {
     final id = _uuid.v4();
     final now = DateTime.now();
@@ -128,6 +136,9 @@ class FirebaseService {
       professionalId: professionalId,
       metier: metier,
       description: description,
+      country: country,
+      city: city,
+      neighborhood: neighborhood,
       latitude: latitude,
       longitude: longitude,
       status: RequestStatus.enAttente,
@@ -135,6 +146,7 @@ class FirebaseService {
       updatedAt: now,
     );
     await _requests.doc(id).set(request.toMap());
+    return id;
   }
 
   /// Demandes reçues par un professionnel (son tableau de bord).
@@ -172,10 +184,69 @@ class FirebaseService {
     });
   }
 
-  Future<void> rateRequest(String requestId, int note, String? commentaire) {
-    return _requests.doc(requestId).update({
-      'note': note,
-      'commentaire': commentaire,
+  Future<void> rateRequest(
+    String requestId,
+    int note,
+    String? commentaire,
+  ) async {
+    if (note < 1 || note > 5) {
+      throw ArgumentError.value(note, 'note', 'Must be between 1 and 5.');
+    }
+
+    final client = _auth.currentUser;
+    if (client == null) {
+      throw StateError('A signed-in client is required to submit a review.');
+    }
+
+    final requestRef = _requests.doc(requestId);
+    await _db.runTransaction((transaction) async {
+      final requestSnapshot = await transaction.get(requestRef);
+      if (!requestSnapshot.exists) {
+        throw StateError('The service request no longer exists.');
+      }
+      final requestData = requestSnapshot.data()!;
+      if (requestData['clientId'] != client.uid) {
+        throw StateError('Only the requesting client can submit a review.');
+      }
+      if (requestData['status'] != RequestStatus.terminee.name) {
+        throw StateError('Only completed requests can be reviewed.');
+      }
+      if (requestData['note'] != null) {
+        throw StateError('This request has already been reviewed.');
+      }
+
+      final professionalId = requestData['professionalId'] as String;
+      final professionalRef = _professionals.doc(professionalId);
+      final professionalSnapshot = await transaction.get(professionalRef);
+      if (!professionalSnapshot.exists) {
+        throw StateError('The professional profile no longer exists.');
+      }
+
+      final professionalData = professionalSnapshot.data()!;
+      final reviewCount =
+          (professionalData['nombreEvaluations'] as num?)?.toInt() ?? 0;
+      final oldTotal =
+          (professionalData['totalNotes'] as num?)?.toInt() ??
+          (((professionalData['noteMoyenne'] as num?)?.toDouble() ?? 0) *
+                  reviewCount)
+              .round();
+      final newCount = reviewCount + 1;
+      final newTotal = oldTotal + note;
+      final normalizedComment = commentaire?.trim();
+
+      transaction.update(requestRef, {
+        'note': note,
+        'commentaire': normalizedComment == null || normalizedComment.isEmpty
+            ? null
+            : normalizedComment,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.update(professionalRef, {
+        'noteMoyenne': newTotal / newCount,
+        'nombreEvaluations': newCount,
+        'totalNotes': newTotal,
+        'lastReviewRequestId': requestId,
+      });
     });
   }
 
@@ -204,7 +275,8 @@ class FirebaseService {
   Stream<List<ProfessionalProfile>> watchAllProfessionals() {
     return _professionals.snapshots().map(
       (snap) => snap.docs
-          .map((d) => ProfessionalProfile.fromMap(d.id, d.data()))
+          .map((d) => ProfessionalProfile.tryFromMap(d.id, d.data()))
+          .whereType<ProfessionalProfile>()
           .toList(),
     );
   }

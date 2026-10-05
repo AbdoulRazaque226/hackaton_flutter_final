@@ -1,169 +1,145 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_localizations.dart';
-import '../../core/utils/distance.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/utils/problem_classifier.dart';
 import '../../data/models/enums.dart';
-import '../../data/models/professional_profile.dart';
 import '../../data/services/firebase_service.dart';
-import '../../data/services/location_service.dart';
-import '../widgets/empty_state.dart';
-import '../widgets/professional_card.dart';
+import '../widgets/brand_logo.dart';
+import '../widgets/category_image.dart';
+import '../widgets/home_hero.dart';
+import 'dashboard/dashboard_menu.dart';
 import 'register_screen.dart' show metierIcon;
 
-class ClientHomeScreen extends ConsumerStatefulWidget {
-  final FirebaseService? firebaseService;
-  final LocationService? locationService;
-  final void Function(ProfessionalProfile pro)? onSelect;
-  final void Function()? onLogout;
-
-  const ClientHomeScreen({
-    super.key,
-    this.firebaseService,
-    this.locationService,
-    this.onSelect,
-    this.onLogout,
-  });
-
-  @override
-  ConsumerState<ClientHomeScreen> createState() => _ClientHomeScreenState();
+String clientHomeExploreUri({Metier? metier, String query = ''}) {
+  final parameters = <String, String>{
+    'tab': 'explore',
+    if (metier != null) 'metier': metier.name,
+    if (metier == null && query.trim().isNotEmpty) 'q': query.trim(),
+  };
+  return Uri(path: '/client/home', queryParameters: parameters).toString();
 }
 
-class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
-  late final FirebaseService _service;
-  late final LocationService _location;
+class ClientHomeScreen extends StatefulWidget {
+  final FirebaseService? firebaseService;
+  final VoidCallback? onLogout;
 
-  Metier _metier = Metier.plombier;
-  Position? _position;
-  String? _locationMessage;
-  bool _locating = true;
+  const ClientHomeScreen({super.key, this.firebaseService, this.onLogout});
+
+  @override
+  State<ClientHomeScreen> createState() => _ClientHomeScreenState();
+}
+
+class _ClientHomeScreenState extends State<ClientHomeScreen> {
+  FirebaseService? _service;
+  final _searchController = TextEditingController();
+  Metier? _selectedMetier;
   String _searchQuery = '';
-
-  List<ProfessionalProfile> _lastPros = const [];
-  int _retry = 0;
 
   @override
   void initState() {
     super.initState();
-    _service = widget.firebaseService ?? FirebaseService();
-    _location = widget.locationService ?? LocationService();
-    _locateMe();
   }
 
-  Future<void> _locateMe() async {
+  FirebaseService get _firebaseService =>
+      widget.firebaseService ?? (_service ??= FirebaseService());
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _updateSearch(String query) {
+    final suggestedMetier = classifyProblem(query);
     setState(() {
-      _locating = true;
-      _locationMessage = null;
+      _searchQuery = query;
+      _selectedMetier = suggestedMetier;
     });
-    try {
-      final position = await _location.getCurrentPosition();
-      if (!mounted) return;
-      setState(() {
-        _position = position;
-        _locating = false;
-      });
-    } on LocationException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _position = null;
-        _locating = false;
-        _locationMessage = e.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _position = null;
-        _locating = false;
-        _locationMessage = 'Position GPS non disponible.';
-      });
-    }
+  }
+
+  void _selectNeed(String query, Metier metier) {
+    _searchController.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    setState(() {
+      _searchQuery = query;
+      _selectedMetier = metier;
+    });
+  }
+
+  void _selectMetier(Metier metier) {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _selectedMetier = metier;
+    });
+    _navigateToExplore(metier: metier);
+  }
+
+  void _openExplore() {
+    final inferredMetier = classifyProblem(_searchQuery);
+    final metier = inferredMetier ?? _selectedMetier;
+    _navigateToExplore(
+      metier: metier,
+      query: metier == null ? _searchQuery.trim() : '',
+    );
+  }
+
+  void _navigateToExplore({Metier? metier, String query = ''}) {
+    context.go(clientHomeExploreUri(metier: metier, query: query));
   }
 
   Future<void> _logout() async {
-    final onLogout = widget.onLogout;
-    await _service.signOut();
-    if (!mounted) return;
-    if (onLogout != null) {
-      onLogout();
-    } else {
-      context.go('/login');
-    }
-  }
-
-  void _openMap() {
-    context.push('/map', extra: _lastPros);
-  }
-
-  void _openProfile(ProfessionalProfile pro) {
-    final onSelect = widget.onSelect;
-    if (onSelect != null) {
-      onSelect(pro);
-    } else {
-      context.push('/client/professional', extra: pro);
-    }
-  }
-
-  List<ProWithDistance> _prepare(
-    List<ProfessionalProfile> pros,
-    AppLocalizations loc,
-  ) {
-    // Filtrage textuel si une recherche est saisie
-    var filtered = pros;
-    if (_searchQuery.trim().isNotEmpty) {
-      final q = _searchQuery.trim().toLowerCase();
-      filtered = pros.where((p) {
-        final name = p.displayName.toLowerCase();
-        final metier = loc.metierLabel(p.metier).toLowerCase();
-        final zone = p.zoneIntervention.toLowerCase();
-        return name.contains(q) || metier.contains(q) || zone.contains(q);
-      }).toList();
-    }
-
-    final position = _position;
-    if (position != null) {
-      return sortByProximity(
-        filtered,
-        fromLat: position.latitude,
-        fromLon: position.longitude,
-        onlyAvailable: true,
+    try {
+      await _firebaseService.signOut();
+      if (!mounted) return;
+      final onLogout = widget.onLogout;
+      if (onLogout != null) {
+        onLogout();
+      } else {
+        context.go('/login');
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'ClientHomeScreen',
+          context: ErrorDescription('while signing out'),
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.fromContext(context).text(
+              'La déconnexion a échoué. Réessayez.',
+              'Sign out failed. Please try again.',
+            ),
+          ),
+        ),
       );
     }
-
-    final available = filtered.where((p) => p.disponible).toList()
-      ..sort((a, b) => (b.noteMoyenne ?? 0).compareTo(a.noteMoyenne ?? 0));
-    return [for (final p in available) (pro: p, km: null)];
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final loc = AppLocalizations.of(context, ref);
-
+    final loc = AppLocalizations.fromContext(context);
+    final compact = MediaQuery.sizeOf(context).width < 760;
     return Scaffold(
       appBar: AppBar(
-        title: Row(
+        leading: dashboardMenuLeading(context),
+        title: const Row(
           children: [
-            Image.asset(
-              'assets/images/logo.png',
-              height: 32,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'ProxServ',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            BrandLogo(height: 32),
+            SizedBox(width: 8),
+            Text('ProxServ', style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
-
         actions: [
-          IconButton(
-            icon: const Icon(Icons.map_outlined),
-            tooltip: loc.viewMap,
-            onPressed: _lastPros.isEmpty ? null : _openMap,
-          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: loc.logout,
@@ -172,130 +148,78 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                loc.homeQuestion,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: _section(
+                context,
+                HomeHero(
+                  searchController: _searchController,
+                  onSearchChanged: _updateSearch,
+                  onNeedSelected: _selectNeed,
+                  onExplore: _openExplore,
                 ),
+                compact: compact,
+                top: 16,
               ),
             ),
-
-            // Barre de recherche textuelle de problème
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
+            SliverToBoxAdapter(
+              child: _section(
+                context,
+                _HomeCategoryRail(
+                  selected: _selectedMetier,
+                  onSelected: _selectMetier,
+                ),
+                compact: compact,
+                top: 28,
+                bottom: 8,
               ),
-              child: TextField(
-                onChanged: (val) => setState(() => _searchQuery = val),
-                decoration: InputDecoration(
-                  hintText: loc.searchHint,
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () => setState(() => _searchQuery = ''),
-                        )
-                      : null,
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 0,
-                    horizontal: 16,
+            ),
+            SliverToBoxAdapter(
+              child: _section(
+                context,
+                HomeEditorialBand(
+                  visualFirst: true,
+                  icon: Icons.location_on_outlined,
+                  title: loc.text(
+                    'Commencez par votre besoin',
+                    'Start with what you need',
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  body: loc.text(
+                    'Décrivez votre intervention ou choisissez un métier. Explore vous permet ensuite de rechercher et comparer les professionnels.',
+                    'Describe the job or choose a trade. Explore lets you search and compare professionals.',
                   ),
                 ),
+                compact: compact,
+                top: 28,
+                bottom: 20,
               ),
             ),
-
-            _MetierSelector(
-              selected: _metier,
-              onChanged: (metier) => setState(() => _metier = metier),
-            ),
-
-            if (_locationMessage != null)
-              _LocationNotice(
-                message: _locationMessage!,
-                onRetry: _locating ? null : _locateMe,
+            SliverToBoxAdapter(
+              child: _section(
+                context,
+                HomeEditorialBand(
+                  visualFirst: false,
+                  icon: Icons.forum_outlined,
+                  title: loc.text(
+                    'Une demande, un suivi clair',
+                    'One request, a clear follow-up',
+                  ),
+                  body: loc.text(
+                    'Après avoir choisi un professionnel, envoyez votre demande et suivez son statut dans votre espace.',
+                    'After choosing a professional, send your request and follow its status in your account.',
+                  ),
+                ),
+                compact: compact,
+                bottom: 24,
               ),
-
-            const SizedBox(height: 8),
-
-            Expanded(
-              child: StreamBuilder<List<ProfessionalProfile>>(
-                key: ValueKey('${_metier.name}-$_retry'),
-                stream: _service.watchProfessionalsByMetier(_metier),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return EmptyState(
-                      icon: Icons.cloud_off,
-                      title: loc.text(
-                        'Chargement impossible',
-                        'Unable to load professionals',
-                      ),
-                      detail: loc.text(
-                        'Vérifiez votre connexion internet.',
-                        'Check your internet connection.',
-                      ),
-                      actionLabel: loc.text('Réessayer', 'Retry'),
-                      onAction: () => setState(() => _retry++),
-                    );
-                  }
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final pros = snapshot.data!;
-                  final available = _prepare(pros, loc);
-
-                  if (!identical(_lastPros, pros)) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) setState(() => _lastPros = pros);
-                    });
-                  }
-
-                  if (available.isEmpty) {
-                    return EmptyState(
-                      icon: metierIcon(_metier),
-                      title: loc.noProsAvailable,
-                      detail: pros.isEmpty
-                          ? loc.text(
-                              'Aucun ${loc.metierLabel(_metier).toLowerCase()} n\'est encore inscrit sur ProxServ.',
-                              'No ${loc.metierLabel(_metier).toLowerCase()} has registered on ProxServ yet.',
-                            )
-                          : loc.text(
-                              'Tous les ${loc.metierLabel(_metier).toLowerCase()}s sont indisponibles actuellement.',
-                              'All ${loc.metierLabel(_metier).toLowerCase()}s are currently unavailable.',
-                            ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: available.length + 1,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return _ResultHeader(
-                          count: available.length,
-                          metier: _metier,
-                          hidden: pros.length - available.length,
-                        );
-                      }
-                      final item = available[index - 1];
-                      return ProfessionalCard(
-                        profile: item.pro,
-                        distanceKm: item.km,
-                        onTap: () => _openProfile(item.pro),
-                      );
-                    },
-                  );
-                },
+            ),
+            SliverToBoxAdapter(
+              child: _section(
+                context,
+                HomeFinalCta(onExplore: _openExplore),
+                compact: compact,
+                bottom: 32,
               ),
             ),
           ],
@@ -303,118 +227,106 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       ),
     );
   }
-}
 
-class _MetierSelector extends StatelessWidget {
-  final Metier selected;
-  final ValueChanged<Metier> onChanged;
-
-  const _MetierSelector({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.fromContext(context);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          for (final metier in Metier.values) ...[
-            ChoiceChip(
-              label: Text(loc.metierLabel(metier)),
-              avatar: Icon(metierIcon(metier), size: 18),
-              selected: metier == selected,
-              onSelected: (_) => onChanged(metier),
-            ),
-            if (metier != Metier.values.last) const SizedBox(width: 8),
-          ],
-        ],
+  Widget _section(
+    BuildContext context,
+    Widget child, {
+    required bool compact,
+    double top = 0,
+    double bottom = 0,
+  }) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1160),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            compact ? 16 : 28,
+            top,
+            compact ? 16 : 28,
+            bottom,
+          ),
+          child: child,
+        ),
       ),
     );
   }
 }
 
-class _ResultHeader extends StatelessWidget {
-  final int count;
-  final Metier metier;
-  final int hidden;
+class _HomeCategoryRail extends StatelessWidget {
+  final Metier? selected;
+  final ValueChanged<Metier> onSelected;
 
-  const _ResultHeader({
-    required this.count,
-    required this.metier,
-    required this.hidden,
-  });
+  const _HomeCategoryRail({required this.selected, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final loc = AppLocalizations.fromContext(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 2),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              loc.isFr
-                  ? '$count ${count > 1 ? 'professionnels' : 'professionnel'} ${loc.metierLabel(metier).toLowerCase()}${count > 1 ? 's' : ''} ${count > 1 ? 'disponibles' : 'disponible'}'
-                  : '$count ${loc.metierLabel(metier).toLowerCase()}${count > 1 ? 's' : ''} ${count > 1 ? 'professionals' : 'professional'} ${count > 1 ? 'available' : 'available'}',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          if (hidden > 0)
-            Text(
-              loc.text(
-                '$hidden indisponible${hidden > 1 ? 's' : ''}',
-                '$hidden unavailable',
-              ),
-              style: theme.textTheme.bodySmall,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LocationNotice extends StatelessWidget {
-  final String message;
-  final VoidCallback? onRetry;
-
-  const _LocationNotice({required this.message, this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final loc = AppLocalizations.fromContext(context);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      child: Row(
-        children: [
-          Icon(
-            Icons.location_off_outlined,
-            size: 16,
-            color: theme.colorScheme.outline,
+    final trades = Metier.values.where((metier) => metier != Metier.autre);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          loc.text('Choisir un métier', 'Choose a trade'),
+          style: theme.textTheme.titleLarge,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SizedBox(
+          height: 112,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: trades.length,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final metier = trades.elementAt(index);
+              final isSelected = metier == selected;
+              return SizedBox(
+                width: 112,
+                child: Material(
+                  color: isSelected
+                      ? theme.colorScheme.primaryContainer
+                      : theme.colorScheme.surface,
+                  borderRadius: AppSpacing.borderRadiusMd,
+                  child: InkWell(
+                    onTap: () => onSelected(metier),
+                    borderRadius: AppSpacing.borderRadiusMd,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
+                      decoration: BoxDecoration(
+                        borderRadius: AppSpacing.borderRadiusMd,
+                        border: Border.all(
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CategoryImage(
+                            metier: metier,
+                            size: 48,
+                            fallbackIcon: metierIcon(metier),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            loc.metierLabel(metier),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-          if (onRetry != null)
-            TextButton(
-              onPressed: onRetry,
-              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-              child: Text(loc.text('Réessayer', 'Retry')),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

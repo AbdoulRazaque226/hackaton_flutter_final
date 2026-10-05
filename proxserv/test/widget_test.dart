@@ -6,6 +6,7 @@ import 'package:proxserv/core/theme/app_theme.dart';
 import 'package:proxserv/data/models/enums.dart';
 import 'package:proxserv/data/models/professional_profile.dart';
 import 'package:proxserv/data/services/location_service.dart';
+import 'package:proxserv/presentation/screens/professional_detail_screen.dart';
 import 'package:proxserv/presentation/screens/request_form_screen.dart';
 import 'package:proxserv/presentation/widgets/professional_card.dart';
 import 'package:proxserv/presentation/widgets/request_status_style.dart';
@@ -34,6 +35,42 @@ class _UnavailableLocationService extends LocationService {
 }
 
 void main() {
+  testWidgets('button theme has finite minimum widths inside rows', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme(),
+        home: Scaffold(
+          body: Wrap(
+            children: [
+              ElevatedButton(onPressed: () {}, child: const Text('Elevated')),
+              FilledButton(onPressed: () {}, child: const Text('Filled')),
+              OutlinedButton(onPressed: () {}, child: const Text('Outlined')),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    for (final button in [
+      find.byType(ElevatedButton),
+      find.byType(FilledButton),
+      find.byType(OutlinedButton),
+    ]) {
+      expect(tester.getSize(button).width.isFinite, isTrue);
+      expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+    }
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
   test('RequestStatusStyle uses the exact semantic color for every status', () {
     final expected = <RequestStatus, Color>{
       RequestStatus.enAttente: AppColors.warning,
@@ -90,6 +127,41 @@ void main() {
     expect(find.text('Plumber'), findsOneWidget);
     expect(find.text('Available'), findsOneWidget);
     expect(find.text('Cocody, Abidjan'), findsOneWidget);
+    expect(find.text('4,8'), findsNothing);
+    expect(find.text('(12 reviews)'), findsNothing);
+    expect(find.text('Aucun avis'), findsNothing);
+  });
+
+  testWidgets('ProfessionalCard uses dark theme surfaces without exceptions', (
+    WidgetTester tester,
+  ) async {
+    final profile = ProfessionalProfile(
+      uid: 'pro_dark',
+      displayName: 'Kouassi Jean',
+      metier: Metier.plombier,
+      phone: '0102030405',
+      zoneIntervention: 'Cocody, Abidjan',
+      disponible: true,
+      latitude: 5.35,
+      longitude: -4.0,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme(),
+        home: Scaffold(
+          body: ListView(
+            children: [ProfessionalCard(profile: profile, onTap: () {})],
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Kouassi Jean'), findsOneWidget);
+    expect(find.text('Available'), findsOneWidget);
+    expect(find.text('New (0 reviews)'), findsNothing);
+    expect(find.text('No reviews yet'), findsNothing);
   });
 
   testWidgets(
@@ -193,7 +265,87 @@ void main() {
     tester.view.resetDevicePixelRatio();
   });
 
-  testWidgets('RequestForm does not submit a fabricated position', (
+  testWidgets('ProfessionalDetail fits mobile, tablet and desktop widths', (
+    WidgetTester tester,
+  ) async {
+    final professional = ProfessionalProfile(
+      uid: 'pro_detail',
+      displayName: 'Kouassi Jean',
+      metier: Metier.plombier,
+      phone: '0102030405',
+      zoneIntervention: 'Cocody, Abidjan',
+      disponible: true,
+      latitude: 5.35,
+      longitude: -4.0,
+    );
+
+    for (final width in [360.0, 390.0, 768.0, 1024.0, 1280.0]) {
+      tester.view
+        ..physicalSize = Size(width, 900)
+        ..devicePixelRatio = 1;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: ProfessionalDetailScreen(profile: professional),
+        ),
+      );
+
+      expect(tester.takeException(), isNull, reason: 'width: $width');
+      expect(find.text('Kouassi Jean'), findsOneWidget);
+      await tester.ensureVisible(find.text('Request Intervention'));
+      expect(find.text('Request Intervention'), findsOneWidget);
+    }
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
+  testWidgets(
+    'professional call action follows phone number, not availability',
+    (tester) async {
+      final professional = ProfessionalProfile(
+        uid: 'pro_unavailable',
+        displayName: 'Kouassi Jean',
+        metier: Metier.plombier,
+        phone: '0102030405',
+        zoneIntervention: 'Cocody, Abidjan',
+        disponible: false,
+        latitude: 5.35,
+        longitude: -4.0,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: ProfessionalDetailScreen(profile: professional)),
+      );
+      final callButton = tester.widget<OutlinedButton>(
+        find.byKey(const ValueKey('professional-call-button')),
+      );
+      expect(callButton.onPressed, isNotNull);
+
+      final profileWithoutPhone = ProfessionalProfile(
+        uid: 'pro_without_phone',
+        displayName: 'Kouassi Jean',
+        metier: Metier.plombier,
+        phone: '',
+        zoneIntervention: 'Cocody, Abidjan',
+        disponible: true,
+        latitude: 5.35,
+        longitude: -4.0,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProfessionalDetailScreen(profile: profileWithoutPhone),
+        ),
+      );
+      final disabledCallButton = tester.widget<OutlinedButton>(
+        find.byKey(const ValueKey('professional-call-button')),
+      );
+      expect(disabledCallButton.onPressed, isNull);
+    },
+  );
+
+  testWidgets('RequestForm falls back to manual location when GPS is refused', (
     WidgetTester tester,
   ) async {
     final professional = ProfessionalProfile(
@@ -216,10 +368,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField), 'Repair a leaking sink');
-    await tester.tap(find.text('Send Request'));
+    await tester.tap(find.text('Use my current location'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('GPS location is unavailable'), findsWidgets);
+    expect(find.text('Location permission was denied.'), findsOneWidget);
+    expect(find.text('Country'), findsOneWidget);
+    expect(find.text('City'), findsOneWidget);
   });
 }

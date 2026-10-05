@@ -1,5 +1,5 @@
 name: proxserv
-description: "A new Flutter project."
+description: "Une plateforme de mise en relation avec des professionnels de proximité."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -36,5 +36,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/categories/
+    - assets/images/hero/
     - assets/audio/
     - assets/sounds/

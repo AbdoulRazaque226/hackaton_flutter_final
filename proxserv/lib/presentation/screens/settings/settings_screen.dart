@@ -6,6 +6,7 @@ import '../../../application/providers/settings_providers.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/app_user.dart';
+import '../dashboard/dashboard_menu.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -28,7 +29,10 @@ class SettingsScreen extends ConsumerWidget {
         prefs['language'] as String? ?? (loc.isFr ? 'fr' : 'en');
 
     return Scaffold(
-      appBar: AppBar(title: Text(loc.settingsTab)),
+      appBar: AppBar(
+        leading: dashboardMenuLeading(context),
+        title: Text(loc.settingsTab),
+      ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [

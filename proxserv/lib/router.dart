@@ -3,10 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proxserv/data/models/app_user.dart';
 import 'application/providers/app_providers.dart';
+import 'data/models/enums.dart';
 import 'data/models/professional_profile.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/register_screen.dart';
 import 'presentation/screens/client_home_screen.dart';
+import 'presentation/screens/public_landing_screen.dart';
 import 'presentation/screens/professional_dashboard_screen.dart';
 import 'presentation/screens/professional_detail_screen.dart';
 import 'presentation/screens/admin_dashboard_screen.dart';
@@ -53,11 +55,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggingIn =
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
+      final isPublicExplore = state.matchedLocation == '/explore';
 
       // Cas 1 : l'utilisateur n'est PAS connecté
       if (user == null) {
-        // S'il n'est pas sur une page d'authentification, on le renvoie vers le Login
-        return isLoggingIn ? null : '/login';
+        return isLoggingIn || isPublicExplore || state.matchedLocation == '/'
+            ? null
+            : '/login';
       }
 
       // Cas 2 : le compte a été bloqué par un administrateur — priorité
@@ -72,7 +76,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       // vient d'être débloqué (encore sur /blocked)
       if (isLoggingIn ||
           state.matchedLocation == '/' ||
-          state.matchedLocation == '/blocked') {
+          state.matchedLocation == '/blocked' ||
+          isPublicExplore) {
         // Routage selon le rôle enregistré dans le document Firestore
         switch (user.role) {
           case UserRole.admin:
@@ -80,6 +85,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           case UserRole.professionnel:
             return '/professional/dashboard';
           case UserRole.client:
+            if (isPublicExplore ||
+                state.uri.queryParameters.containsKey('metier') ||
+                state.uri.queryParameters.containsKey('q')) {
+              final query = <String, String>{
+                'tab': 'explore',
+                if (state.uri.queryParameters['metier'] != null)
+                  'metier': state.uri.queryParameters['metier']!,
+                if (state.uri.queryParameters['q'] != null)
+                  'q': state.uri.queryParameters['q']!,
+              };
+              return Uri(
+                path: '/client/home',
+                queryParameters: query,
+              ).toString();
+            }
             return '/client/home';
         }
       }
@@ -110,8 +130,21 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, state) =>
-            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        builder: (context, state) => const PublicLandingScreen(),
+      ),
+      GoRoute(
+        path: '/explore',
+        builder: (context, state) {
+          final metierName = state.uri.queryParameters['metier'];
+          final metier = metierName == null
+              ? null
+              : Metier.fromName(metierName);
+          return PublicExploreScreen(
+            initialMetier:
+                metier == Metier.autre ? null : metier,
+            initialQuery: state.uri.queryParameters['q'] ?? '',
+          );
+        },
       ),
       GoRoute(
         path: '/login',
@@ -130,39 +163,64 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/client/home',
         builder: (context, state) {
+          final metierName = state.uri.queryParameters['metier'];
+          final metier = metierName == null
+              ? null
+              : Metier.fromName(metierName);
+          final initialQuery = state.uri.queryParameters['q'] ?? '';
           final initialIndex = switch (state.uri.queryParameters['tab']) {
             'requests' => 2,
             'explore' => 1,
-            _ => 0,
+            _ => metier != null || initialQuery.isNotEmpty ? 1 : 0,
           };
           return DashboardShell(
-            home: ClientHomeScreen(
-              onSelect: (pro) =>
-                  context.push('/client/professional', extra: pro),
-            ),
+            home: const ClientHomeScreen(),
             initialIndex: initialIndex,
+            initialExploreMetier:
+                metier == Metier.autre ? null : metier,
+            initialExploreQuery:
+                metier == null || metier == Metier.autre ? initialQuery : '',
           );
         },
       ),
       GoRoute(
         path: '/client/explore',
-        builder: (context, state) => DashboardShell(
-          home: ClientHomeScreen(
-            onSelect: (pro) => context.push('/client/professional', extra: pro),
-          ),
-          initialIndex: 1,
-        ),
+        builder: (context, state) {
+          final metierName = state.uri.queryParameters['metier'];
+          final metier = metierName == null
+              ? null
+              : Metier.fromName(metierName);
+          return DashboardShell(
+            home: const ClientHomeScreen(),
+            initialIndex: 1,
+            initialExploreMetier:
+                metier == Metier.autre ? null : metier,
+            initialExploreQuery:
+                metier == null || metier == Metier.autre
+                    ? state.uri.queryParameters['q'] ?? ''
+                    : '',
+          );
+        },
       ),
       GoRoute(
         path: '/client/professional',
-        builder: (context, state) => ProfessionalDetailScreen(
-          profile: state.extra as ProfessionalProfile,
-        ),
+        builder: (context, state) {
+          final profile = state.extra;
+          if (profile is! ProfessionalProfile) {
+            return _professionalUnavailable(context);
+          }
+          return ProfessionalDetailScreen(profile: profile);
+        },
       ),
       GoRoute(
         path: '/client/request-form',
-        builder: (context, state) =>
-            RequestFormScreen(professional: state.extra as ProfessionalProfile),
+        builder: (context, state) {
+          final profile = state.extra;
+          if (profile is! ProfessionalProfile) {
+            return _professionalUnavailable(context);
+          }
+          return RequestFormScreen(professional: profile);
+        },
       ),
       GoRoute(
         path: '/map',

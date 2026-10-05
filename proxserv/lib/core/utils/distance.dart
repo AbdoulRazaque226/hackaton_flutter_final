@@ -3,8 +3,7 @@ import 'dart:math' as math;
 import '../../data/models/professional_profile.dart';
 
 // Un professionnel avec sa distance au client (en km).
-// [km] est null si le professionnel n'a pas encore partagé sa position
-// (à l'inscription, latitude et longitude valent 0).
+// [km] est null si le professionnel n'a pas partagé de position réelle.
 typedef ProWithDistance = ({ProfessionalProfile pro, double? km});
 
 // Distance à vol d'oiseau entre deux points GPS (formule de Haversine), en km.
@@ -24,6 +23,14 @@ double _rad(double deg) => deg * math.pi / 180;
 
 // Vrai si le professionnel a une vraie position (pas le 0,0 par défaut).
 bool hasPosition(ProfessionalProfile pro) =>
+    pro.latitude != null &&
+    pro.longitude != null &&
+    pro.latitude!.isFinite &&
+    pro.longitude!.isFinite &&
+    pro.latitude! >= -90 &&
+    pro.latitude! <= 90 &&
+    pro.longitude! >= -180 &&
+    pro.longitude! <= 180 &&
     !(pro.latitude == 0 && pro.longitude == 0);
 
 // Calcule la distance de chaque professionnel au client et trie du plus
@@ -41,7 +48,7 @@ List<ProWithDistance> sortByProximity(
         (
           pro: p,
           km: hasPosition(p)
-              ? distanceKm(fromLat, fromLon, p.latitude, p.longitude)
+              ? distanceKm(fromLat, fromLon, p.latitude!, p.longitude!)
               : null,
         ),
   ];

@@ -8,6 +8,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../data/models/app_user.dart';
 import '../../data/models/enums.dart';
 import '../../data/services/firebase_service.dart';
+import '../widgets/brand_logo.dart';
 import 'login_screen.dart' show authErrorMessage;
 
 // Écran d'inscription : compte client ou professionnel.
@@ -34,6 +35,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _zoneController = TextEditingController();
+  final _countryController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _neighborhoodController = TextEditingController();
 
   late final FirebaseService _service;
 
@@ -59,6 +63,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmController.dispose();
     _zoneController.dispose();
+    _countryController.dispose();
+    _cityController.dispose();
+    _neighborhoodController.dispose();
     super.dispose();
   }
 
@@ -80,6 +87,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: _role,
         metier: _metier,
         zoneIntervention: _isPro ? _zoneController.text.trim() : null,
+        country: _isPro ? _countryController.text.trim() : '',
+        city: _isPro ? _cityController.text.trim() : '',
+        neighborhood: _isPro ? _neighborhoodController.text.trim() : '',
       );
       if (!mounted) return;
 
@@ -163,12 +173,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          height: 64,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                        ),
+                        child: const BrandLogo(height: 64),
                       ),
                     ),
                     Text(
@@ -380,6 +385,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 )
                               : null;
                         },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _countryController,
+                        textCapitalization: TextCapitalization.words,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: loc.text('Pays', 'Country'),
+                          hintText: loc.text(
+                            'Ex. Côte d’Ivoire',
+                            'e.g. Côte d’Ivoire',
+                          ),
+                          prefixIcon: const Icon(Icons.public_outlined),
+                        ),
+                        validator: (value) {
+                          if (!_isPro) return null;
+                          return (value?.trim().isEmpty ?? true)
+                              ? loc.text('Indiquez votre pays.', 'Enter your country.')
+                              : null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _cityController,
+                        textCapitalization: TextCapitalization.words,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: loc.text('Ville', 'City'),
+                          hintText: loc.text('Ex. Abidjan', 'e.g. Abidjan'),
+                          prefixIcon: const Icon(Icons.location_city_outlined),
+                        ),
+                        validator: (value) {
+                          if (!_isPro) return null;
+                          return (value?.trim().isEmpty ?? true)
+                              ? loc.text('Indiquez votre ville.', 'Enter your city.')
+                              : null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _neighborhoodController,
+                        textCapitalization: TextCapitalization.words,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: loc.text(
+                            'Quartier / zone (facultatif)',
+                            'Neighborhood / area (optional)',
+                          ),
+                          prefixIcon: const Icon(Icons.location_on_outlined),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 24),

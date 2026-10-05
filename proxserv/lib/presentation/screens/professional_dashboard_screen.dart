@@ -7,6 +7,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/service_request.dart';
+import 'dashboard/dashboard_menu.dart';
 import '../widgets/request_status_style.dart';
 
 class ProfessionalDashboardScreen extends ConsumerWidget {
@@ -149,6 +150,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
+          leading: dashboardMenuLeading(context),
           title: const Text(
             'Tableau de Bord Artisan',
             style: TextStyle(fontWeight: FontWeight.bold),

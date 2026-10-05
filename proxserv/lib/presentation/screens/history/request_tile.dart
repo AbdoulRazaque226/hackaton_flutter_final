@@ -26,6 +26,7 @@ class RequestTile extends StatelessWidget {
   final bool unread;
 
   final VoidCallback? onTap;
+  final Future<void> Function(int note, String? commentaire)? onRate;
 
   const RequestTile({
     super.key,
@@ -34,7 +35,47 @@ class RequestTile extends StatelessWidget {
     this.proName,
     this.unread = false,
     this.onTap,
+    this.onRate,
   });
+
+  Future<void> _showRatingDialog(BuildContext context) async {
+    final loc = AppLocalizations.fromContext(context);
+    final result = await showDialog<_ReviewInput>(
+      context: context,
+      builder: (context) => _RequestRatingDialog(loc: loc),
+    );
+    if (result == null || onRate == null) return;
+
+    try {
+      await onRate!(result.note, result.commentaire);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(loc.text('Merci pour votre avis.', 'Thank you for your review.')),
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'RequestTile',
+          context: ErrorDescription('while submitting a service review'),
+        ),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            loc.text(
+              'Votre avis n’a pas pu être envoyé. Réessayez.',
+              'Your review could not be sent. Please try again.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,25 +155,49 @@ class RequestTile extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(
-                    Icons.access_time,
-                    size: 14,
-                    color: theme.colorScheme.outline,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatDate(request.createdAt, loc),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
+              if (isClient && request.status == RequestStatus.terminee) ...[
+                const SizedBox(height: 8),
+                if (request.note == null && onRate != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showRatingDialog(context),
+                      icon: const Icon(Icons.star_outline),
+                      label: Text(loc.text('Donner mon avis', 'Leave a review')),
                     ),
+                  )
+                else if (request.note != null)
+                  _RequestReviewSummary(
+                    note: request.note!,
+                    commentaire: request.commentaire,
+                    loc: loc,
                   ),
-                  const Spacer(),
-                  if (unread)
-                    Row(
-                      children: [
+              ],
+              const SizedBox(height: 10),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 380;
+                  final date = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatDate(request.createdAt, loc),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  );
+                  final chatStatus = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (unread)
                         Container(
                           width: 8,
                           height: 8,
@@ -140,39 +205,191 @@ class RequestTile extends StatelessWidget {
                             color: theme.colorScheme.primary,
                             shape: BoxShape.circle,
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          loc.text('Non lu', 'Unread'),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Row(
-                      children: [
+                        )
+                      else
                         Icon(
                           Icons.chat_bubble_outline,
                           size: 14,
                           color: theme.colorScheme.outline,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          loc.text('Ouvrir le chat', 'Open chat'),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
+                      const SizedBox(width: 4),
+                      Text(
+                        unread
+                            ? loc.text('Non lu', 'Unread')
+                            : loc.text('Ouvrir le chat', 'Open chat'),
+                        style: (unread
+                                ? theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                  )
+                                : theme.textTheme.bodySmall)
+                            ?.copyWith(
+                              color: unread
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outline,
+                            ),
+                      ),
+                    ],
+                  );
+                  return compact
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            date,
+                            const SizedBox(height: 6),
+                            chatStatus,
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [date, chatStatus],
+                        );
+                },
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ReviewInput {
+  final int note;
+  final String? commentaire;
+
+  const _ReviewInput(this.note, this.commentaire);
+}
+
+class _RequestRatingDialog extends StatefulWidget {
+  final AppLocalizations loc;
+
+  const _RequestRatingDialog({required this.loc});
+
+  @override
+  State<_RequestRatingDialog> createState() => _RequestRatingDialogState();
+}
+
+class _RequestRatingDialogState extends State<_RequestRatingDialog> {
+  final _commentController = TextEditingController();
+  int? _note;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = widget.loc;
+    return AlertDialog(
+      title: Text(loc.text('Évaluer l’intervention', 'Review the service')),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(loc.text('Votre note', 'Your rating')),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 4,
+              children: [
+                for (var value = 1; value <= 5; value++)
+                  Semantics(
+                    button: true,
+                    selected: _note == value,
+                    label: loc.text('$value sur 5 étoiles', '$value out of 5 stars'),
+                    child: IconButton(
+                      tooltip: loc.text(
+                        '$value étoile${value > 1 ? 's' : ''}',
+                        '$value star${value > 1 ? 's' : ''}',
+                      ),
+                      onPressed: () => setState(() => _note = value),
+                      icon: Icon(
+                        _note != null && value <= _note!
+                            ? Icons.star
+                            : Icons.star_outline,
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _commentController,
+              maxLines: 3,
+              maxLength: 500,
+              decoration: InputDecoration(
+                labelText: loc.text('Commentaire (facultatif)', 'Comment (optional)'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(loc.text('Annuler', 'Cancel')),
+        ),
+        FilledButton(
+          onPressed: _note == null
+              ? null
+              : () => Navigator.pop(
+                    context,
+                    _ReviewInput(
+                      _note!,
+                      _commentController.text.trim().isEmpty
+                          ? null
+                          : _commentController.text.trim(),
+                    ),
+                  ),
+          child: Text(loc.text('Envoyer', 'Submit')),
+        ),
+      ],
+    );
+  }
+}
+
+class _RequestReviewSummary extends StatelessWidget {
+  final int note;
+  final String? commentaire;
+  final AppLocalizations loc;
+
+  const _RequestReviewSummary({
+    required this.note,
+    required this.commentaire,
+    required this.loc,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              for (var value = 1; value <= 5; value++)
+                Icon(
+                  value <= note ? Icons.star : Icons.star_outline,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.tertiary,
+                ),
+              const SizedBox(width: 8),
+              Text(loc.text('Votre avis', 'Your review')),
+            ],
+          ),
+          if (commentaire?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(commentaire!),
+            ),
+        ],
       ),
     );
   }

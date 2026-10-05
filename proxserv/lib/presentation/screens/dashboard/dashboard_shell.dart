@@ -1,35 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../application/providers/app_providers.dart';
 import '../../../application/providers/chat_providers.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/app_user.dart';
+import '../../../data/models/enums.dart';
+import '../../../data/services/firebase_service.dart';
 import '../chat/chat_list_screen.dart';
 import '../history/history_screen.dart';
 import '../explore_screen.dart';
 import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
+import '../../widgets/brand_logo.dart';
+import 'dashboard_menu.dart';
 
 /// Shell principal de navigation réactive (Mobile, Tablette, Desktop).
 class DashboardShell extends ConsumerStatefulWidget {
   final Widget home;
   final int initialIndex;
+  final Metier? initialExploreMetier;
+  final String initialExploreQuery;
 
-  const DashboardShell({super.key, required this.home, this.initialIndex = 0});
+  const DashboardShell({
+    super.key,
+    required this.home,
+    this.initialIndex = 0,
+    this.initialExploreMetier,
+    this.initialExploreQuery = '',
+  });
 
   @override
   ConsumerState<DashboardShell> createState() => _DashboardShellState();
 }
 
 class _DashboardShellState extends ConsumerState<DashboardShell> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   late int _index;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex) {
+      _index = widget.initialIndex;
+    }
   }
 
   @override
@@ -55,7 +77,10 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
           ]
         : [
             widget.home,
-            const ExploreScreen(),
+            ExploreScreen(
+              initialMetier: widget.initialExploreMetier,
+              initialQuery: widget.initialExploreQuery,
+            ),
             const HistoryScreen(),
             const ChatListScreen(),
             const ProfileScreen(),
@@ -150,14 +175,14 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
 
     if (isMobile) {
       return Scaffold(
-        body: IndexedStack(
-          index: _index.clamp(0, pages.length - 1),
-          children: pages,
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index.clamp(0, destinations.length - 1),
-          onDestinationSelected: (value) => setState(() => _index = value),
-          destinations: destinations,
+        key: _scaffoldKey,
+        drawer: _buildMobileDrawer(context, user, loc, isPro),
+        body: DashboardMenuScope(
+          onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+          child: IndexedStack(
+            index: _index.clamp(0, pages.length - 1),
+            children: pages,
+          ),
         ),
       );
     }
@@ -175,11 +200,7 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset(
-                    'assets/images/logo.png',
-                    height: 36,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
+                  const BrandLogo(height: 36),
                   if (isDesktop) ...[
                     const SizedBox(width: 8),
                     const Text(
@@ -206,5 +227,148 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
         ],
       ),
     );
+  }
+
+  Widget _buildMobileDrawer(
+    BuildContext context,
+    AppUser user,
+    AppLocalizations loc,
+    bool isPro,
+  ) {
+    final requestIndex = isPro ? 1 : 2;
+    final messageIndex = isPro ? 2 : 3;
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Row(
+                children: [
+                  const BrandLogo(height: 38),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      user.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _drawerItem(
+              context,
+              icon: Icons.home_outlined,
+              label: isPro ? loc.dashboardTab : loc.homeTab,
+              selected: _index == 0,
+              onTap: () => _selectDrawerPage(0),
+            ),
+            if (!isPro)
+              _drawerItem(
+                context,
+                icon: Icons.search,
+                label: loc.exploreTab,
+                selected: _index == 1,
+                onTap: () => _selectDrawerPage(1),
+              ),
+            _drawerItem(
+              context,
+              icon: Icons.assignment_outlined,
+              label: loc.requestsTab,
+              selected: _index == requestIndex,
+              onTap: () => _selectDrawerPage(requestIndex),
+            ),
+            _drawerItem(
+              context,
+              icon: Icons.chat_bubble_outline,
+              label: loc.messagesTab,
+              selected: _index == messageIndex,
+              onTap: () => _selectDrawerPage(messageIndex),
+            ),
+            _drawerItem(
+              context,
+              icon: Icons.person_outline,
+              label: loc.profileTab,
+              selected: _index == 4,
+              onTap: () => _selectDrawerPage(4),
+            ),
+            _drawerItem(
+              context,
+              icon: Icons.settings_outlined,
+              label: loc.settingsTab,
+              selected: isPro && _index == 3,
+              onTap: () {
+                _closeDrawer();
+                if (isPro) {
+                  setState(() => _index = 3);
+                } else {
+                  context.push('/settings');
+                }
+              },
+            ),
+            const Divider(),
+            _drawerItem(
+              context,
+              icon: Icons.logout,
+              label: loc.logout,
+              onTap: () => _signOut(context, loc),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _drawerItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool selected = false,
+  }) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      selected: selected,
+      onTap: onTap,
+    );
+  }
+
+  void _selectDrawerPage(int index) {
+    _closeDrawer();
+    setState(() => _index = index);
+  }
+
+  void _closeDrawer() => _scaffoldKey.currentState?.closeDrawer();
+
+  Future<void> _signOut(BuildContext context, AppLocalizations loc) async {
+    _closeDrawer();
+    try {
+      await FirebaseService().signOut();
+      if (context.mounted) context.go('/login');
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'DashboardShell',
+          context: ErrorDescription('while signing out from the mobile menu'),
+        ),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            loc.text(
+              'La déconnexion a échoué. Réessayez.',
+              'Sign out failed. Please try again.',
+            ),
+          ),
+        ),
+      );
+    }
   }
 }
