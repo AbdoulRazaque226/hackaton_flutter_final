@@ -201,25 +201,45 @@ class _MapScreenState extends State<MapScreen> {
       byZone.putIfAbsent(p.zoneIntervention, () => []).add(p);
     }
 
-    return [
-      for (final entry in byZone.entries)
+    final circles = <CircleMarker>[];
+    for (final entry in byZone.entries) {
+      final center = _centroid(entry.value);
+      // Zone dont aucun membre n'a de position : aucun cercle a dessiner.
+      if (center == null) continue;
+      circles.add(
         CircleMarker(
-          point: _centroid(entry.value),
+          point: center,
           radius: _zoneRadiusMeters,
           useRadiusInMeter: true,
           color: Colors.green.withValues(alpha: 0.12),
           borderColor: Colors.green.withValues(alpha: 0.5),
           borderStrokeWidth: 1.5,
         ),
-    ];
+      );
+    }
+    return circles;
   }
 
-  LatLng _centroid(List<ProfessionalProfile> pros) {
-    final lat =
-        pros.map((p) => p.latitude).reduce((a, b) => a + b) / pros.length;
-    final lon =
-        pros.map((p) => p.longitude).reduce((a, b) => a + b) / pros.length;
-    return LatLng(lat, lon);
+  /// Centre geographique d'un groupe de professionnels.
+  ///
+  /// `latitude` et `longitude` sont nullables : un professionnel qui n'a pas
+  /// partage sa position n'entre pas dans la moyenne, et une zone entierement
+  /// sans position ne donne aucun cercle plutot qu'une exception.
+  LatLng? _centroid(List<ProfessionalProfile> pros) {
+    final lats = <double>[];
+    final lons = <double>[];
+    for (final p in pros) {
+      final lat = p.latitude;
+      final lon = p.longitude;
+      if (lat == null || lon == null) continue;
+      lats.add(lat);
+      lons.add(lon);
+    }
+    if (lats.isEmpty) return null;
+    return LatLng(
+      lats.reduce((a, b) => a + b) / lats.length,
+      lons.reduce((a, b) => a + b) / lons.length,
+    );
   }
 
   void _showPro(ProfessionalProfile pro) {

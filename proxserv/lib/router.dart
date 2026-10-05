@@ -259,3 +259,34 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+/// Écran affiché quand on ouvre `/client/professional` ou `/client/request-form`
+/// sans profil passé en `state.extra`.
+///
+/// Ces deux routes sont atteintes depuis une liste de professionnels : si le
+/// document n'a pas pu être lu, on ne peut pas ouvrir la fiche ni le
+/// formulaire. On propose un retour plutôt que de laisser un ecran vide.
+Widget _professionalUnavailable(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: const Text('Professionnel indisponible')),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Ce profil n est plus accessible.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => context.go('/client/home'),
+              child: const Text('Retour a l accueil'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
