@@ -6,6 +6,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/utils/distance.dart';
 import '../../data/models/professional_profile.dart';
 import 'category_image.dart';
+import 'star_rating.dart';
 
 /// Single Reference ProfessionalCard Component (Mission 2A & 2B)
 class ProfessionalCard extends StatelessWidget {
@@ -124,6 +125,11 @@ class ProfessionalCard extends StatelessWidget {
                 height: 1,
                 color: isDark ? AppColors.borderDark : AppColors.borderLight,
               ),
+              const SizedBox(height: AppSpacing.md),
+              // Note moyenne : elle décide en partie du choix du client, elle
+              // doit donc être visible sur la carte, pas seulement en ouvrant
+              // le profil.
+              _CardRating(profile: profile),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
@@ -253,6 +259,55 @@ class AvailabilityBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Ligne de note sous forme d'étoiles, avec le nombre d'avis.
+///
+/// Un professionnel sans évaluation n'affiche pas d'étoiles vides : une rangée
+/// de cinq étoiles vides se lit comme une note de zéro alors que le
+/// professionnel n'est tout simplement pas encore noté.
+class _CardRating extends StatelessWidget {
+  final ProfessionalProfile profile;
+
+  const _CardRating({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.fromContext(context);
+
+    final count = profile.nombreEvaluations;
+    final average = profile.noteMoyenne;
+    final hasRating = average != null && count > 0;
+
+    return Row(
+      children: [
+        if (hasRating) ...[
+          Flexible(
+            child: StarRating(
+              value: average,
+              size: 16,
+              showValue: true,
+              color: AppColors.brandAccent,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            loc.text('($count avis)', '($count reviews)'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+        ] else
+          Text(
+            loc.text('Pas encore noté', 'Not rated yet'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+      ],
     );
   }
 }

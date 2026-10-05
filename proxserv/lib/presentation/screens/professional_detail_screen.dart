@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../data/models/professional_profile.dart';
 import '../widgets/professional_card.dart';
+import '../widgets/star_rating.dart';
 
 /// Écran de fiche détaillée d'un professionnel (Mission 2A & 2B).
 class ProfessionalDetailScreen extends StatelessWidget {
@@ -78,17 +79,6 @@ class ProfessionalDetailScreen extends StatelessWidget {
     final loc = AppLocalizations.fromContext(context);
     final hasRealRating =
         profile.noteMoyenne != null && profile.nombreEvaluations > 0;
-
-    final ratingText = hasRealRating
-        ? profile.noteMoyenne!.toStringAsFixed(1)
-        : 'Nouveau';
-
-    final evalText = hasRealRating
-        ? loc.text(
-            '${profile.nombreEvaluations} évaluation(s)',
-            '${profile.nombreEvaluations} review(s)',
-          )
-        : loc.text('Aucune évaluation', 'No reviews');
 
     return Scaffold(
       appBar: AppBar(title: Text(loc.proProfileTitle)),
@@ -218,14 +208,24 @@ class ProfessionalDetailScreen extends StatelessWidget {
                           height: 24,
                           color: theme.colorScheme.outlineVariant,
                         ),
+                        // Note sous forme d'étoiles : la moyenne est un
+                        // décimal, les demi-étoiles rendent le 4,5 lisible.
                         _buildInfoRow(
                           context: context,
                           icon: Icons.star_outline,
                           iconColor: AppColors.brandAccent,
                           title: loc.text('Note moyenne', 'Average rating'),
-                          value: hasRealRating
-                              ? '$ratingText / 5  ($evalText)'
-                              : loc.noReviewsYet,
+                          valueWidget: hasRealRating
+                              ? StarRating(
+                                  value: profile.noteMoyenne!,
+                                  size: 20,
+                                  showValue: true,
+                                  reviewCount: profile.nombreEvaluations,
+                                )
+                              : Text(
+                                  loc.noReviewsYet,
+                                  style: theme.textTheme.bodySmall,
+                                ),
                         ),
                       ],
                     ),
@@ -320,9 +320,14 @@ class ProfessionalDetailScreen extends StatelessWidget {
     required IconData icon,
     Color? iconColor,
     required String title,
-    required String value,
+    String? value,
+    Widget? valueWidget,
   }) {
     final theme = Theme.of(context);
+    assert(
+      value != null || valueWidget != null,
+      'fournir value ou valueWidget',
+    );
     return Row(
       children: [
         Icon(icon, color: iconColor ?? theme.colorScheme.primary, size: 22),
@@ -338,12 +343,17 @@ class ProfessionalDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                value,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+              // Une ligne peut contenir du texte simple (téléphone, zone) ou
+              // un widget : les étoiles demandent plus de place qu'une chaîne.
+              if (valueWidget != null)
+                valueWidget
+              else
+                Text(
+                  value!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
