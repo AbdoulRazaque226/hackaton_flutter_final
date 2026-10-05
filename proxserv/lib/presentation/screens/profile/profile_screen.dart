@@ -89,6 +89,20 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     if (!_dirty) setState(() => _dirty = true);
   }
 
+  @override
+  void didUpdateWidget(covariant _ProfileForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Le profil professionnel arrive via un flux Firestore séparé, souvent
+    // après le premier build (ProfileScreen est monté immédiatement par
+    // l'IndexedStack du dashboard). S'il n'était pas encore là pendant
+    // initState, on remplit les champs dès qu'il arrive, sans écraser une
+    // saisie déjà en cours par l'utilisateur.
+    if (!_dirty && oldWidget.profile == null && widget.profile != null) {
+      _zone.text = widget.profile!.zoneIntervention;
+      setState(() => _metier = widget.profile!.metier);
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     final firestore = ref.read(firestoreProvider);
