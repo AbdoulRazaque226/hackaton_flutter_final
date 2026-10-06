@@ -7,8 +7,10 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/service_request.dart';
+import '../../data/services/location_service.dart';
 import 'dashboard/dashboard_menu.dart';
 import '../widgets/request_status_style.dart';
+import '../widgets/location_settings_prompt.dart';
 
 class ProfessionalDashboardScreen extends ConsumerWidget {
   const ProfessionalDashboardScreen({super.key});
@@ -216,6 +218,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                               children: [
                                 _buildStatusIndicator(profile.disponible),
                                 _buildAvailabilityButton(
+                                  context,
                                   ref,
                                   profile.disponible,
                                 ),
@@ -227,6 +230,7 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
                                 _buildStatusIndicator(profile.disponible),
                                 const SizedBox(height: 12),
                                 _buildAvailabilityButton(
+                                  context,
                                   ref,
                                   profile.disponible,
                                 ),
@@ -349,7 +353,11 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAvailabilityButton(WidgetRef ref, bool isDisponible) {
+  Widget _buildAvailabilityButton(
+    BuildContext context,
+    WidgetRef ref,
+    bool isDisponible,
+  ) {
     return ElevatedButton.icon(
       style: ElevatedButton.styleFrom(
         backgroundColor: isDisponible ? AppColors.error : AppColors.success,
@@ -359,9 +367,33 @@ class ProfessionalDashboardScreen extends ConsumerWidget {
       icon: Icon(isDisponible ? Icons.power_settings_new : Icons.play_arrow),
       label: Text(isDisponible ? 'Passer Hors Ligne' : 'Passer En Ligne'),
       onPressed: () async {
-        await ref
-            .read(professionalProfileProvider.notifier)
-            .toggleAvailability();
+        try {
+          await ref
+              .read(professionalProfileProvider.notifier)
+              .toggleAvailability();
+        } on LocationException catch (error) {
+          if (context.mounted) {
+            await showLocationSettingsPrompt(
+              context,
+              error,
+              ref.read(locationServiceProvider),
+            );
+          }
+        } catch (error) {
+          if (context.mounted) {
+            final loc = AppLocalizations.fromContext(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  loc.text(
+                    'Impossible de modifier votre disponibilité : $error',
+                    'Unable to update your availability: $error',
+                  ),
+                ),
+              ),
+            );
+          }
+        }
       },
     );
   }

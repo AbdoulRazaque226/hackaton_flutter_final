@@ -121,9 +121,10 @@ class ProfessionalNotifier
           .doc(currentProfile.uid)
           .update(updates);
     } catch (e, stack) {
-      // En cas d'erreur réseau
+      // Restaure le profil avant de propager l'erreur à l'écran, qui peut
+      // alors proposer l'ouverture des réglages de localisation.
       state = AsyncData(currentProfile);
-      state = AsyncError(e, stack);
+      Error.throwWithStackTrace(e, stack);
     }
   }
 }

@@ -64,6 +64,7 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
 
   bool _saving = false;
   bool _dirty = false;
+  bool _syncingProfile = false;
 
   bool get _isPro => widget.user.role == UserRole.professionnel;
 
@@ -114,7 +115,7 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
   }
 
   void _markDirty() {
-    if (!_dirty) setState(() => _dirty = true);
+    if (!_syncingProfile && !_dirty) setState(() => _dirty = true);
   }
 
   @override
@@ -126,8 +127,13 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     // initState, on remplit les champs dès qu'il arrive, sans écraser une
     // saisie déjà en cours par l'utilisateur.
     if (!_dirty && oldWidget.profile == null && widget.profile != null) {
+      _syncingProfile = true;
       _zone.text = widget.profile!.zoneIntervention;
-      setState(() => _metier = widget.profile!.metier);
+      _country.text = widget.profile!.country;
+      _city.text = widget.profile!.city;
+      _neighborhood.text = widget.profile!.neighborhood;
+      _metier = widget.profile!.metier;
+      _syncingProfile = false;
     }
   }
 

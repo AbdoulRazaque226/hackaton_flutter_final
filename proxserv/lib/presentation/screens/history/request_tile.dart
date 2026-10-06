@@ -284,6 +284,7 @@ class _RequestRatingDialogState extends State<_RequestRatingDialog> {
   Widget build(BuildContext context) {
     final loc = widget.loc;
     return AlertDialog(
+      scrollable: true,
       title: Text(loc.text('Évaluer l’intervention', 'Review the service')),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),

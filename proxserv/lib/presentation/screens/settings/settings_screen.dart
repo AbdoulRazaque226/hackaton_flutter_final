@@ -6,6 +6,8 @@ import '../../../application/providers/settings_providers.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/app_user.dart';
+import '../../../data/services/location_service.dart';
+import '../../widgets/location_settings_prompt.dart';
 import '../dashboard/dashboard_menu.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -134,9 +136,34 @@ class SettingsScreen extends ConsumerWidget {
               value: profile?.disponible ?? false,
               onChanged: profile == null
                   ? null
-                  : (_) => ref
-                        .read(professionalProfileProvider.notifier)
-                        .toggleAvailability(),
+                  : (_) async {
+                      try {
+                        await ref
+                            .read(professionalProfileProvider.notifier)
+                            .toggleAvailability();
+                      } on LocationException catch (error) {
+                        if (context.mounted) {
+                          await showLocationSettingsPrompt(
+                            context,
+                            error,
+                            ref.read(locationServiceProvider),
+                          );
+                        }
+                      } catch (error) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                loc.text(
+                                  'Impossible de modifier votre disponibilité : $error',
+                                  'Unable to update your availability: $error',
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
             ),
           ],
 
