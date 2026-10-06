@@ -18,6 +18,8 @@ import 'presentation/screens/map_screen.dart';
 import 'presentation/screens/chat/chat_screen.dart';
 import 'presentation/screens/dashboard/dashboard_shell.dart';
 import 'presentation/screens/settings/settings_screen.dart';
+import 'presentation/widgets/empty_state.dart';
+import 'core/localization/app_localizations.dart';
 import 'presentation/navigation/chat_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -210,7 +212,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             return _professionalUnavailable(context);
           }
           return ProfessionalDetailScreen(profile: profile);
-        },
+        }, 
       ),
       GoRoute(
         path: '/client/request-form',
@@ -260,33 +262,30 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Écran affiché quand on ouvre `/client/professional` ou `/client/request-form`
-/// sans profil passé en `state.extra`.
-///
-/// Ces deux routes sont atteintes depuis une liste de professionnels : si le
-/// document n'a pas pu être lu, on ne peut pas ouvrir la fiche ni le
-/// formulaire. On propose un retour plutôt que de laisser un ecran vide.
+// Affiché quand une route attend un `ProfessionalProfile` via `extra`
+// (ex. /client/professional, /client/request-form) mais n'en reçoit pas
+// par exemple en cas de navigation directe par lien, ou de retour sur
+// une page après que les données en mémoire ont été perdues.
 Widget _professionalUnavailable(BuildContext context) {
+  final loc = AppLocalizations.fromContext(context);
   return Scaffold(
-    appBar: AppBar(title: const Text('Professionnel indisponible')),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Ce profil n est plus accessible.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => context.go('/client/home'),
-              child: const Text('Retour a l accueil'),
-            ),
-          ],
-        ),
+    appBar: AppBar(
+      title: Text(loc.text('Professionnel introuvable', 'Professional not found')),
+    ),
+    body: EmptyState(
+      icon: Icons.person_off_outlined,
+      title: loc.text(
+        'Ce professionnel n\'est plus disponible',
+        'This professional is no longer available',
       ),
+      detail: loc.text(
+        'Reviens à la liste pour choisir un professionnel.',
+        'Go back to the list to pick a professional.',
+      ),
+      actionLabel: loc.viewList,
+      onAction: () => context.canPop()
+          ? context.pop()
+          : context.go('/client/home?tab=explore'),
     ),
   );
 }
