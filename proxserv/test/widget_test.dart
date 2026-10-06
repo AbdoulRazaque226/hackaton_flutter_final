@@ -10,6 +10,7 @@ import 'package:proxserv/presentation/screens/professional_detail_screen.dart';
 import 'package:proxserv/presentation/screens/request_form_screen.dart';
 import 'package:proxserv/presentation/widgets/professional_card.dart';
 import 'package:proxserv/presentation/widgets/request_status_style.dart';
+import 'package:proxserv/presentation/widgets/star_rating.dart';
 
 class _TestLocationService extends LocationService {
   @override
@@ -127,9 +128,12 @@ void main() {
     expect(find.text('Plumber'), findsOneWidget);
     expect(find.text('Available'), findsOneWidget);
     expect(find.text('Cocody, Abidjan'), findsOneWidget);
-    expect(find.text('4,8'), findsNothing);
-    expect(find.text('(12 reviews)'), findsNothing);
-    expect(find.text('Aucun avis'), findsNothing);
+    // La note moyenne est visible sur la carte : c'est elle qui aide le client
+    // a choisir, elle ne doit pas attendre l'ouverture du profil.
+    expect(find.text('4.8'), findsOneWidget);
+    expect(find.text('(12 reviews)'), findsOneWidget);
+    expect(find.byType(StarRating), findsOneWidget);
+    expect(find.text('Not rated yet'), findsNothing);
   });
 
   testWidgets('ProfessionalCard uses dark theme surfaces without exceptions', (
@@ -160,8 +164,10 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Kouassi Jean'), findsOneWidget);
     expect(find.text('Available'), findsOneWidget);
-    expect(find.text('New (0 reviews)'), findsNothing);
-    expect(find.text('No reviews yet'), findsNothing);
+    // Sans évaluation, la carte ne dessine pas cinq étoiles vides : cela se
+    // lirait comme une note de zero. Elle l'annonce explicitement.
+    expect(find.text('Not rated yet'), findsOneWidget);
+    expect(find.byType(StarRating), findsNothing);
   });
 
   testWidgets(
