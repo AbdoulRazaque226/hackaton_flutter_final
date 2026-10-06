@@ -15,7 +15,7 @@ service cloud.firestore {
     // Utilisé par les règles du fil de discussion.
     function isParticipant(requestId) {
       let req = get(/databases/$(database)/documents/requests/$(requestId));
-      return isSignedIn() && req.exists && (
+      return isSignedIn() && req != null && (
         req.data.clientId == request.auth.uid ||
         req.data.professionalId == request.auth.uid
       );
@@ -46,7 +46,34 @@ service cloud.firestore {
             && request.resource.data.status == 'enCours')
           || (resource.data.status == 'enCours'
             && request.resource.data.status == 'terminee')
-        );
+      );
+    }
+
+    function isValidChatUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+          'lastMessage',
+          'lastMessageAt',
+          'lastMessageSenderId'
+        ])
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() > 0
+        && request.resource.data.lastMessage.size() <= 2000
+        && request.resource.data.lastMessageAt is timestamp
+        && request.resource.data.lastMessageSenderId == request.auth.uid;
+    }
+
+    function isValidReadReceiptUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return (
+        request.auth.uid == resource.data.clientId
+        && changed.hasOnly(['clientLastReadAt'])
+        && request.resource.data.clientLastReadAt is timestamp
+      ) || (
+        request.auth.uid == resource.data.professionalId
+        && changed.hasOnly(['proLastReadAt'])
+        && request.resource.data.proLastReadAt is timestamp
+      );
     }
 
     function isValidProfessionalReviewUpdate(proId) {
@@ -58,11 +85,12 @@ service cloud.firestore {
         /databases/$(database)/documents/requests/$(reviewId)
       );
       let oldCount = resource.data.get('nombreEvaluations', 0);
-      let oldAverage = resource.data.get('noteMoyenne', 0);
-      let oldTotal = resource.data.get(
-        'totalNotes',
-        math.round(oldAverage * oldCount)
-      );
+      let storedAverage = resource.data.get('noteMoyenne', null);
+      let oldAverage = storedAverage == null ? 0 : storedAverage;
+      let storedTotal = resource.data.get('totalNotes', null);
+      let oldTotal = storedTotal == null
+        ? math.round(oldAverage * oldCount)
+        : storedTotal;
       let newCount = request.resource.data.nombreEvaluations;
       let newTotal = request.resource.data.totalNotes;
       let changed = request.resource.data.diff(resource.data).affectedKeys();
@@ -144,6 +172,12 @@ service cloud.firestore {
           && isValidClientReview(requestId))
         || (request.auth.uid == resource.data.professionalId
           && isProfessionalStatusUpdate())
+        || ((request.auth.uid == resource.data.clientId
+              || request.auth.uid == resource.data.professionalId)
+            && isValidChatUpdate())
+        || ((request.auth.uid == resource.data.clientId
+              || request.auth.uid == resource.data.professionalId)
+            && isValidReadReceiptUpdate())
       )
       // Les deux acteurs d'une demande ne changent jamais : sans cette garde,
       // un intervenant pourrait se substituer à l'autre en réécrivant le champ
