@@ -214,11 +214,14 @@ class _MapScreenState extends State<MapScreen> {
     ];
   }
 
+  // `pros` vient toujours de `visible` (déjà filtrée par `hasPosition`),
+  // donc latitude/longitude sont garantis non nuls ici malgré le type
+  // nullable du modèle.
   LatLng _centroid(List<ProfessionalProfile> pros) {
     final lat =
-        pros.map((p) => p.latitude).reduce((a, b) => a + b) / pros.length;
+        pros.map((p) => p.latitude!).reduce((a, b) => a + b) / pros.length;
     final lon =
-        pros.map((p) => p.longitude).reduce((a, b) => a + b) / pros.length;
+        pros.map((p) => p.longitude!).reduce((a, b) => a + b) / pros.length;
     return LatLng(lat, lon);
   }
 

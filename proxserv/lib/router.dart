@@ -18,6 +18,8 @@ import 'presentation/screens/map_screen.dart';
 import 'presentation/screens/chat/chat_screen.dart';
 import 'presentation/screens/dashboard/dashboard_shell.dart';
 import 'presentation/screens/settings/settings_screen.dart';
+import 'presentation/widgets/empty_state.dart';
+import 'core/localization/app_localizations.dart';
 import 'presentation/navigation/chat_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -210,7 +212,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             return _professionalUnavailable(context);
           }
           return ProfessionalDetailScreen(profile: profile);
-        },
+        }, 
       ),
       GoRoute(
         path: '/client/request-form',
@@ -259,3 +261,31 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+// Affiché quand une route attend un `ProfessionalProfile` via `extra`
+// (ex. /client/professional, /client/request-form) mais n'en reçoit pas
+// par exemple en cas de navigation directe par lien, ou de retour sur
+// une page après que les données en mémoire ont été perdues.
+Widget _professionalUnavailable(BuildContext context) {
+  final loc = AppLocalizations.fromContext(context);
+  return Scaffold(
+    appBar: AppBar(
+      title: Text(loc.text('Professionnel introuvable', 'Professional not found')),
+    ),
+    body: EmptyState(
+      icon: Icons.person_off_outlined,
+      title: loc.text(
+        'Ce professionnel n\'est plus disponible',
+        'This professional is no longer available',
+      ),
+      detail: loc.text(
+        'Reviens à la liste pour choisir un professionnel.',
+        'Go back to the list to pick a professional.',
+      ),
+      actionLabel: loc.viewList,
+      onAction: () => context.canPop()
+          ? context.pop()
+          : context.go('/client/home?tab=explore'),
+    ),
+  );
+}
